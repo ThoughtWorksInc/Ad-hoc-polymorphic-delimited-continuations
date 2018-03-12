@@ -38,40 +38,13 @@
 
 \makeglossaries
 
-\newglossaryentry{plug-in}{
-  name={plug-in},
-  description={
-    is a Scala \lstinline{trait} designed to be instantiated by \href{https://javadoc.io/page/com.thoughtworks.feature/factory_2.11/latest/com/thoughtworks/feature/Factory.html}{\lstinline{Factory}}, along with other plug-ins
-  }
-}
+% \newglossaryentry{plug-in}{
+%   name={plug-in},
+%   description={
+%     is a Scala \lstinline{trait} designed to be instantiated by \href{https://javadoc.io/page/com.thoughtworks.feature/factory_2.11/latest/com/thoughtworks/feature/Factory.html}{\lstinline{Factory}}, along with other plug-ins
+%   }
+% }
 
-\newglossaryentry{differentiable function}{
-  name={differentiable function},
-  description={
-    is a Scala function that returns a \gls{differentiable expression}. It may represent a loss functions, a neural network or a subset of a neural network (e.g. a dense block in DenseNet\cite{iandola2014densenet})
-  }
-}
-
-\newglossaryentry{differentiable expression}{
-  name={differentiable expression},
-  description={
-    is a composable expression that supports operator overloading, whose type is \lstinline{DoubleLayer}, \lstinline{FloatLayer}, \lstinline{INDArrayLayer}, or other subtypes of \href{https://javadoc.io/page/com.thoughtworks.deeplearning/plugins-layers_2.11/latest/com/thoughtworks/deeplearning/plugins/Layers$Layer.html}{\lstinline{Layer}}. After a differentiable expression is built, it can perform \lstinline{forward} pass to create a differentiable \glspl{computational graph}.
-  }
-}
-
-\newglossaryentry{trainable variable}{
-  name={trainable variable},
-  description={
-    is a scalar or vector weight in a model, whose type is \lstinline{DoubleWeight}, \lstinline{FloatWeight}, \lstinline{INDArrayWeight}, or other subtypes of \href{https://javadoc.io/page/com.thoughtworks.deeplearning/plugins-weights_2.11/latest/com/thoughtworks/deeplearning/plugins/Weights$Weight.html}{\lstinline{Weight}}
-  }  
-}
-
-\newglossaryentry{computational graph}{
-  name={computational graph},
-  description={
-    is an asynchronous monadic data type that manages the life cycle of tapes, whose type is \href{https://javadoc.io/page/com.thoughtworks.raii/asynchronous_2.11/latest/com/thoughtworks/raii/asynchronous$$Do.html}{\lstinline{Do}}\lstinline{[}\href{https://javadoc.io/page/com.thoughtworks.deeplearning/deeplearning_2.11/latest/com/thoughtworks/deeplearning/DeepLearning$$Tape.html}{\lstinline{Tape[Data, Delta]}}\lstinline{]}
-  }
-}
 
 % Metadata Information
 % \acmJournal{PACMPL}
@@ -110,39 +83,12 @@
 %   \country{USA}
 }
 \email{atryyang@thoughtworks.com}
-\author{Zhang, Zhihao}
-\affiliation{%
-  \institution{ThoughtWorks, Inc}
-%   \streetaddress{104 Jamestown Rd}
-%   \city{Williamsburg}
-%   \state{VA}
-%   \postcode{23185}
-%   \country{USA}
-}
-\email{zhazhang@thoughtworks.com}
-\author{Marisa Kirisame} 
-\affiliation{%
- \institution{University of Washington}
-%  \streetaddress{Rono-Hills}
- \city{Seattle} 
- \state{Washington}
- \country{USA}}
-\email{lolisa@marisa.moe}
+
 
 \begin{abstract}
-The Java and Scala community built a very successful big data ecosystem, however, most of neural networks running on it are modeled in dynamically typed programming languages. These dynamically typed deep learning frameworks treat neural networks as differentiable expressions that contain many \glspl{trainable variable}, and perform automatic differentiation on those expressions when training them.
 
-Until 2017, all deep learning frameworks in statically typed language do not support the same features. Their users are not able to custom algorithms unless creating plenty of boilerplate code for hard-coded back-propagation.
-
-We solved this problem in DeepLearning.scala 2.0. Our contributions are:
-
-\begin{itemize}
-  \item We discovered a novel approach to perform automatic differentiation in reverse mode for statically typed functions that contain multiple \glspl{trainable variable}.
-  \item We designed a set of monads and monad transformers, which allow users to create monadic expressions that represent dynamic neural networks.
-  \item Along with these monads, we provide some applicative functors, to perform multiple calculations in parallel.
-\end{itemize}
-
-Together of these features, users of DeepLearning.scala are able to create complex neural networks in an intuitive and concise way, and still keep type safe.
+In functional programming, imperative control flow can be composed from monads\cite{wadler1990comprehending,wadler1992essence,jones1993composing}.
+Along with monad transformers\cite{liang1995monad} and \lstinline{do} or \lstinline{for} comprehension\cite{jones1998haskell,odersky2004scala}, the ability control flow
 \end{abstract}
 
 
