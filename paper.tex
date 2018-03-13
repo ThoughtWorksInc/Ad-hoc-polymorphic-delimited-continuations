@@ -77,7 +77,7 @@
 % Document starts
 \begin{document}
 % Title portion
-\title{The essence of domain-specific languages}
+\title{Keywords in libraries}
 %  \titlenote{This is a titlenote}
 % \subtitle{creating collaborative domain-specific languages with control flow}
 %  \subtitlenote{Subtitle note}
@@ -96,16 +96,11 @@
 
 
 \begin{abstract}
-We discovered a novel approach to create embedded \textbf{D}omain-\textbf{S}pecific \textbf{L}anguages. Our approach is based on two assumptions:
-\begin{enumerate*}
-  \item The return type is the specific domain of a DSL.
-  \item A DSL feature should be adaptive to various domains along with the hosting language control flow.
-\end{enumerate*}
-By combining of the two assumptions, we build a DSL framework, and some examples of DSLs in various domains, including asynchronous or parallel programming, lazy stream generation, resource management.
+The semantics of a programming language are defined by its keywords, which traditionally require special treatment by the compiler. Thus, the capacity of the programming language is not extensible by libraries, unless using compiler plug-ins, AST macros, code generation, or other metaprogramming technologies.
 
-A DSL keyword in our framework can be adaptive to its contextual domain. A DSL user can create a single function that contains interleaved DSLs implemented by different vendors, along with ordinary Scala control flows.
+We discovered a novel approach to create user-defined keywords used in control flow. Those keywords are interpreted by libraries instead of the compiler.
 
-Our framework can be also used as a syntactic sugar of monads, as a replacement of monad comprehension.
+Unlike monads and monad transformers, keywords defined in libraries are collaborative. An application developer can create a single function that contains interleaved keywords from different libraries, along with ordinary language control flows. No explicit lifting between monadic data type is required.
 \end{abstract}
 
 
@@ -117,13 +112,8 @@ Our framework can be also used as a syntactic sugar of monads, as a replacement 
 \begin{CCSXML}
 <ccs2012>
 <concept>
-<concept_id>10002950.10003714.10003715.10003748</concept_id>
-<concept_desc>Mathematics of computing~Automatic differentiation</concept_desc>
-<concept_significance>300</concept_significance>
-</concept>
-<concept>
-<concept_id>10010520.10010521.10010542.10010294</concept_id>
-<concept_desc>Computer systems organization~Neural networks</concept_desc>
+<concept_id>10011007.10011006.10011008.10011009.10011019</concept_id>
+<concept_desc>Software and its engineering~Extensible languages</concept_desc>
 <concept_significance>500</concept_significance>
 </concept>
 <concept>
@@ -132,8 +122,13 @@ Our framework can be also used as a syntactic sugar of monads, as a replacement 
 <concept_significance>500</concept_significance>
 </concept>
 <concept>
-<concept_id>10011007.10011006.10011008.10011009.10011012</concept_id>
-<concept_desc>Software and its engineering~Functional languages</concept_desc>
+<concept_id>10011007.10011006.10011050.10011017</concept_id>
+<concept_desc>Software and its engineering~Domain specific languages</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10011007.10011006.10011008.10011009.10011010</concept_id>
+<concept_desc>Software and its engineering~Imperative languages</concept_desc>
 <concept_significance>300</concept_significance>
 </concept>
 <concept>
@@ -142,56 +137,49 @@ Our framework can be also used as a syntactic sugar of monads, as a replacement 
 <concept_significance>300</concept_significance>
 </concept>
 <concept>
-<concept_id>10011007.10011006.10011008.10011009.10011019</concept_id>
-<concept_desc>Software and its engineering~Extensible languages</concept_desc>
-<concept_significance>100</concept_significance>
-</concept>
-<concept>
-<concept_id>10011007.10011006.10011050.10011017</concept_id>
-<concept_desc>Software and its engineering~Domain specific languages</concept_desc>
+<concept_id>10011007.10011006.10011008.10011009.10011012</concept_id>
+<concept_desc>Software and its engineering~Functional languages</concept_desc>
 <concept_significance>300</concept_significance>
 </concept>
 <concept>
-<concept_id>10011007.10011006.10011066.10011067</concept_id>
-<concept_desc>Software and its engineering~Object oriented frameworks</concept_desc>
+<concept_id>10011007.10011006.10011008.10011024.10011025</concept_id>
+<concept_desc>Software and its engineering~Polymorphism</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10011007.10011006.10011041.10010943</concept_id>
+<concept_desc>Software and its engineering~Interpreters</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10011007.10011006.10011008.10011024.10011038</concept_id>
+<concept_desc>Software and its engineering~Frameworks</concept_desc>
 <concept_significance>100</concept_significance>
 </concept>
 <concept>
-<concept_id>10011007.10011074.10011092.10011093</concept_id>
-<concept_desc>Software and its engineering~Object oriented development</concept_desc>
-<concept_significance>100</concept_significance>
-</concept>
-<concept>
-<concept_id>10011007.10011006.10011008.10011009.10010175</concept_id>
-<concept_desc>Software and its engineering~Parallel programming languages</concept_desc>
-<concept_significance>100</concept_significance>
-</concept>
-<concept>
-<concept_id>10011007.10011006.10011008.10011009.10011016</concept_id>
-<concept_desc>Software and its engineering~Data flow languages</concept_desc>
+<concept_id>10011007.10011006.10011041.10011046</concept_id>
+<concept_desc>Software and its engineering~Translator writing systems and compiler generators</concept_desc>
 <concept_significance>100</concept_significance>
 </concept>
 </ccs2012>
 \end{CCSXML}
 
-\ccsdesc[500]{Computer systems organization~Neural networks}
+\ccsdesc[500]{Software and its engineering~Extensible languages}
 \ccsdesc[500]{Software and its engineering~Multiparadigm languages}
-\ccsdesc[300]{Mathematics of computing~Automatic differentiation}
-\ccsdesc[300]{Software and its engineering~Functional languages}
+\ccsdesc[500]{Software and its engineering~Domain specific languages}
+\ccsdesc[300]{Software and its engineering~Imperative languages}
 \ccsdesc[300]{Software and its engineering~Object oriented languages}
-\ccsdesc[300]{Software and its engineering~Domain specific languages}
-\ccsdesc[100]{Software and its engineering~Extensible languages}
-\ccsdesc[100]{Software and its engineering~Object oriented frameworks}
-\ccsdesc[100]{Software and its engineering~Object oriented development}
-\ccsdesc[100]{Software and its engineering~Parallel programming languages}
-\ccsdesc[100]{Software and its engineering~Data flow languages}
-
+\ccsdesc[300]{Software and its engineering~Functional languages}
+\ccsdesc[300]{Software and its engineering~Polymorphism}
+\ccsdesc[300]{Software and its engineering~Interpreters}
+\ccsdesc[100]{Software and its engineering~Frameworks}
+\ccsdesc[100]{Software and its engineering~Translator writing systems and compiler generators}
 %
 % End generated code
 %
 
 
-\keywords{type class, path-dependent type, monad, scala}
+\keywords{type class, scala}
 
 
 
