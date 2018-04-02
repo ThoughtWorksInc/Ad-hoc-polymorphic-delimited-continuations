@@ -1,30 +1,37 @@
 \section{Introduction}
 \label{introduction}
 
-Traditionally, the capable of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language). For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not able to be embedded in \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because Akka's DSL split code into small closures, preventing ordinary control flows from crossing the boundary of those closures.
+Traditionally, the capable of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language). For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not able to be embedded in \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because Akka's DSL split code into small closures, preventing ordinary control flows from crossing the boundary of those closures. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSL.
 
-TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSL.
+It's too trivial to reinvent the whole set of control flows for each DSL. A simpler approach is only implementing a minimal interface required for control flows for each domain, while the syntax of other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} or \lstinline{for} comprehension \cite{jones1998haskell,odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
-It's too trivial to reinvent the whole set of control flows for each DSL. A simpler approach is only implementing a minimal interface required for control flows for each domain, while the syntax of other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} or \lstinline{for} comprehension \cite{jones1998haskell,odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{Gen} and \lstinline{Binding} respectively.
-
-An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing its users to just wrap normal synchronous code in a \lstinline{scala.async} block while it runs asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala can be used to create reactive HTML template from ordinary Scala control flow.
+An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal synchronous code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
 
 Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on `stateless-future`, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
-The above DSLs lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic `each` method for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
+All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic `each` method for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
-This paper describes a novel approach to resolve the collaboration problem, and an implementation of the approach in Scala, the framework \textit{Dsl.scala}.
+This paper describes a novel approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
 
-\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those keywords are collaborative, as an application developer can create one function that contains interleaved keywords from different vendors, along with ordinary Scala control flows.
+\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those keywords are collaborative, as a library user can create one function that contains interleaved keywords from different vendors, along with ordinary Scala control flows.
 
 % TODO: link to other section.
-We also provide some built-in DSLs for asynchronous or parallel programming, lazy stream generation, resource management, and some adapters to monads and monad transformers.
+\textit{Dsl.scala} also ships with some built-in keywords, including:
+\begin{itemize}
+  \item The \lstinline{Shift} keyword for asynchronous programming, similar to the \lstinline{await} and \lstinline{async} keywords in C\#, Python and JavaScript.
+  \item The \lstinline{Yield} keyword for generating lazy streams, similar to the \lstinline{yield} keyword in C\#, Python and JavaScript.
+  \item The \lstinline{Fork} keyword for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
+  \item The \lstinline{AutoClose} keyword to automatically close resources when exiting a scope, similar to the destructor feature in C++.
+  \item The \lstinline{Monadic} keyword for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
+\end{itemize}
+ 
 
- Our approach is based on two assumptions:
-\begin{enumerate}
-  \item The return type is the specific domain of DSL.
-  \item A language feature should be adaptive to various domains along with the hosting language control flow.
-\end{enumerate}
+
+%  Our approach is based on two assumptions:
+% \begin{enumerate}
+%   \item The return type is the specific domain of DSL.
+%   \item A language feature should be adaptive to various domains along with the hosting language control flow.
+% \end{enumerate}
 % % By combining of the two assumptions, we build a DSL framework, and some examples of DSLs in various domains, including asynchronous or parallel programming, lazy stream generation, resource management.
 
 % % A DSL keyword in our framework can be adaptive to its contextual domain. A DSL user can create a single function that contains interleaved DSLs implemented by different vendors, along with ordinary Scala control flows.
@@ -44,7 +51,7 @@ We also provide some built-in DSLs for asynchronous or parallel programming, laz
 % % three different function call mechanisms (call-by-name, call-by-value and lazy evaluation), references and assignment,
 % % nondeterminism, first-class continuations, and program tracing.
 
-
+\section{Using library-defined keywords}
 
 \section{Conclusion}
 \label{conclusion}
