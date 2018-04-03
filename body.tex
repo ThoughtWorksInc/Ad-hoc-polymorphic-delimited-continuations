@@ -61,7 +61,7 @@ Suppose Alice is creating an Xorshift pseudo-random number generator \cite{marsa
 
 The usage of Alice's pseudo-random number generator is shown as below:
 
-\begin{lstlisting}[float={h t b p},caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
+\begin{lstlisting}[caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
 val generatedNumbers = aliceRandomGenerator(seed = 2463534242)
 println(generatedNumbers(0))
 println(generatedNumbers(1))
@@ -72,7 +72,7 @@ Alice is a functional programming language developer. She wants to avoid mutable
 
 With the help of the built-in keyword \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
-\begin{lstlisting}[float={h t b p},caption={The implementation of Alice's pseudo-random number generator},label={generatedNumbers}]
+\begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={generatedNumbers}]
 import com.thoughtworks.dsl.keywords.Yield
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
@@ -93,9 +93,9 @@ In this use case, we will demonstrate how to add the logging feature to existing
 
 Suppose Bob has a function to parse JSON text. The parser is fault-tolerant, since it returns the \lstinline{defaultValue} for invalid input  (Listing \ref{bobParser}).
 
-\begin{lstlisting}[float={h t b p},caption={The original implementation of Bob's parser},label={bobParser}]
+\begin{lstlisting}[caption={The original implementation of Bob's parser},label={bobParser}]
 import scala.util.parsing.json._
-def bobParser(jsonContent: String, defaultValue: JSONType): JSONType = { (callback: JSONType => Stream[String]) =>
+def bobParser(jsonContent: String, defaultValue: JSONType): JSONType = {
   JSON.parseRaw(jsonContent) match {
     case Some(json) =>
       callback(json)
@@ -111,7 +111,7 @@ However, unlike Alice's case, Bob's parser should return both the parsed JSON ob
 
 Bob resolves the problem by creating a delimited continuation. The parsed JSON object is handled by a callback function instead of return value. Thus the return value is still a \lstinline{Stream}, allowing \lstinline{Yield}ing log messages (Listing \ref{bobLoggingParser}).
 
-\begin{lstlisting}[float={h t b p},caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
+\begin{lstlisting}[caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
 import com.thoughtworks.dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
   !Yield(s"I am going to parse the JSON text $jsonContent...")
@@ -128,10 +128,10 @@ def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String
 
 The return type of Bob's new parser is \lstinline{Stream[String] !! JSONType}, which is an alias to the delimited continuation \lstinline{(JSONType => Stream[String]) => Stream[String]}, indicating it produces both a \lstinline{scala.util.parsing.json.JSONType} and a \lstinline{Stream} of logs.
 
-After Bob created the first version of delimited continuation, he then found that the closure can be simplified with the help of Scala's placeholder syntax (Listing \ref{bobLoggingParserSimplified}).
+After Bob created the first version of delimited continuation, he then found that the closure can be simplified with the help of Scala's placeholder syntax (Listing \ref{bobLoggingParserUnderscore}).
 
-\begin{lstlisting}[float={h t b p},caption={The implementation of Bob's logging parser, the simplified version},label={bobLoggingParserSimplified}]
-def bobLoggingParserSimplified(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = _ {
+\begin{lstlisting}[caption={The implementation of Bob's logging parser, the underscore placeholder version},label={bobLoggingParserUnderscore}]
+def bobLoggingParserUnderscore(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = _ {
   !Yield(s"I am going to parse the JSON text $jsonContent...")
   JSON.parseRaw(jsonContent) match {
     case Some(json) =>
@@ -144,27 +144,49 @@ def bobLoggingParserSimplified(jsonContent: String, defaultValue: JSONType): Str
 }
 \end{lstlisting}
 
-Then, the user of Bob's parser can get the result in a callback function, and check the logs from return value (Listing \ref{usingBobParserSimplified})
+Alternately, Bob can use the pre-defined function \lstinline{delay} \footnote{The difference between underscore and \lstinline{delay} will be discussed in Section \ref{Creating library-defined keywords}} instead of the underscore placeholder (Listing \ref{bobLoggingParserDelay}). 
 
-\begin{lstlisting}[float={h t b p},caption={Using Bob's parser},label={usingBobParserSimplified}]
-val logs = bobLoggingParserSimplified("""{"key":"value"}""", JSONArray(Nil)) { json =>
+\begin{lstlisting}[caption={The implementation of Bob's logging parser, the delay version},label={bobLoggingParserDelay}]
+import com.thoughtworks.dsl.Dsl.delay
+def bobLoggingParserDelay(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = delay {
+  !Yield(s"I am going to parse the JSON text $jsonContent...")
+  JSON.parseRaw(jsonContent) match {
+    case Some(json) =>
+      !Yield(s"Succeeded to parse $jsonContent")
+      json
+    case None =>
+      !Yield(s"Failed to parse $jsonContent")
+      defaultValue
+  }
+}
+\end{lstlisting}
+
+Then, the user of Bob's parser calls \lstinline{bobLoggingParserDelay} to handle both results (Listing \ref{usingBobLoggingParserDelay}):
+
+\begin{enumerate}
+  \item The JSON result in a callback function.
+  \item The logs from return value.
+\end{enumerate}
+
+\begin{lstlisting}[caption={Using Bob's parser},label={usingBobLoggingParserDelay}]
+val logs = bobLoggingParserDelay("""{"key":"value"}""", JSONArray(Nil)) { json =>
   json should be(JSONObject(Map("key" -> "value")))
   Stream("done")
 }
 logs should be(
   Stream(
-    "I am going to parse the JSON text  { \"key\": \"value\" } ...",
-    "Succeeded to parse  { \"key\": \"value\" } ",
+    "I am going to parse the JSON text {\"key\":\"value\"}...",
+    "Succeeded to parse {\"key\":\"value\"}",
     "done"
   )
 )
 \end{lstlisting}
 
-There are only few changes between Bob's \lstinline{bobParserSimplified} and the original \lstinline{bobParser} to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
+There are only few changes between Bob's \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
-  \item Inserting an underscore character before the method block body.
+  \item Inserting an \lstinline{delay} character before the method block body.
 \end{enumerate}
 
 \subsection{Use case: reading lines from a resource}
@@ -172,6 +194,7 @@ There are only few changes between Bob's \lstinline{bobParserSimplified} and the
 Carol
 
 \section{Creating library-defined keywords}
+\label{Creating library-defined keywords}
 
 
 % use Scala's underscore as a syntactic sugar to simplify his code. 
