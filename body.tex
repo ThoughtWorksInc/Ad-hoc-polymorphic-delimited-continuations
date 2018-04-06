@@ -83,7 +83,7 @@ def aliceRandomGenerator(seed: Int): Stream[Int] = {
 }
 \end{lstlisting}
 
-\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError} because the execution of \lstinline{aliceRandomGenerator} will be paused at the keyword \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
+\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the keyword \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
 \lstinline{Yield} is a keyword to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific keyword \lstinline{Yield} can be used. More generally, \textbf{the return type is the specific domain of DSL.}
 
@@ -126,7 +126,7 @@ def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String
 }
 \end{lstlisting}
 
-The return type of Bob's new parser is \lstinline{Stream[String] !! JSONType}, which is an alias to the delimited continuation \lstinline{(JSONType => Stream[String]) => Stream[String]}, indicating it produces both a \lstinline{scala.util.parsing.json.JSONType} and a \lstinline{Stream} of logs.
+The return type of Bob's new parser is \lstinline{(Stream[String] !! JSONType)}, which is an alias to the delimited continuation \lstinline{((JSONType => Stream[String]) => Stream[String])}, indicating it produces both a \lstinline{scala.util.parsing.json.JSONType} and a \lstinline{Stream} of logs.
 
 After Bob created the first version of delimited continuation, he then found that the closure can be simplified with the help of Scala's placeholder syntax (Listing \ref{bobLoggingParserUnderscore}).
 
@@ -182,7 +182,7 @@ logs should be(
 )
 \end{lstlisting}
 
-There are only few changes between Bob's \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
+The use case of Bob's parser demonstrates how to enable additional keywords into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
@@ -191,7 +191,68 @@ There are only few changes between Bob's \lstinline{bobLoggingParserDelay} and t
 
 \subsection{Use case: reading lines from a resource}
 
-Carol
+In this use case, we will demonstrate how to use multiple library-defined keywords in one function.
+
+Suppose Carol is creating a line splitter from a file. Carol wants to lazily read each line of a file to a [[Stream]], and automatically close the file handle after reading the last line, and finally return the total number of lines.
+
+Carol will use the \lstinline{Yield} keyword to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} keyword to manage the life-cycle of the file handle.
+
+\lstinline{Yield} keyword is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} keyword is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both keywords (Listing \ref{carolLineSplitter}).
+
+\begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
+import com.thoughtworks.dsl.Dsl.!!, !!.delay
+import com.thoughtworks.dsl.keywords.AutoClose
+import com.thoughtworks.dsl.keywords.Yield
+import com.thoughtworks.dsl.keywords.Shift
+import java.nio.file._, Files._
+
+def carolLineSplitter(path: Path): Stream[String] !! Throwable !! Int = delay {
+  val reader = !AutoClose(newBufferedReader(path))
+
+  def loop(lineNumber: Int): Stream[String] !! Throwable !! Int = _ {
+    reader.readLine() match {
+      case null =>
+        lineNumber
+      case line =>
+        !Yield(line)
+        !Shift(loop(lineNumber + 1))
+    }
+  }
+
+  !loop(0)
+}
+\end{lstlisting}
+
+Note that \lstinline{(Stream[String] !! Throwable !! Int)} is a delimited continuation, Carol also needs \lstinline{Shift} keyword as the first-class delimited continuation operator\cite{danvy1990abstracting,asai2009typing} to create recursive calls.
+
+The type \lstinline{(Stream[String] !! Throwable !! Int)} returned from \lstinline{carolLineSplitter} contains the following data:
+
+\begin{itemize}
+  \item A \lstinline{Stream} of each lines of the file, as the final return value.
+  \item An optional \lstinline{Throwable} of the exception thrown during reading the file, which can be handled by a callback function.
+  \item An \lstinline{Int} of the total number of lines in the file, which can be handled by another callback function.
+\end{itemize}
+
+The example code of using Carol's line splitter is shown in Listing \ref{usingCarolLineSplitter}.
+
+\begin{lstlisting}[caption={Using Carol's line splitter},label={usingCarolLineSplitter}]
+val allLines: Stream[String] = carolLineSplitter(Paths.get("multiline.txt")) { numberOfLines: Int =>
+  println(s"There are ${numberOfLines} lines in multiline.txt")
+  Function.const(Stream.empty)(_)
+} { e: Throwable =>
+  println("An error occurred during splitting multiline.txt")
+}
+\end{lstlisting}
+
+In this use case, Carol created a function from three library-defined keywords.
+
+\begin{enumerate}
+  \item \lstinline{AutoClose} for resource management, similar to C++'s RAII feature.
+  \item \lstinline{Yield} for lazily append values to a \lstinline{Stream}, similar to Python, C\# or ECMAScript's \lstinline{yield} keyword.
+  \item \lstinline{Shift} for awaiting a value from a task, similar to Python, C\# or ECMAScript's \lstinline{await} keyword.
+\end{enumerate}
+
+What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline{yield} and \lstinline{await} in one function, even when \lstinline{yield} and \lstinline{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline{yield} and \lstinline{await}, while our library-defined keywords are collaborative with arbitrary other keywords by composing extra domains on the return type.
 
 \section{Creating library-defined keywords}
 \label{Creating library-defined keywords}
