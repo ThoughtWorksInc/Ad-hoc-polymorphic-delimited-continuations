@@ -18,8 +18,8 @@ This paper describes a novel approach to resolve the collaboration problem, and 
 % TODO: link to other section.
 \textit{Dsl.scala} also ships with some built-in keywords, including:
 \begin{itemize}
-  \item The \lstinline{Shift} keyword for asynchronous programming, similar to the \lstinline{await} and \lstinline{async} keywords in C\#, Python and JavaScript.
-  \item The \lstinline{Yield} keyword for generating lazy streams, similar to the \lstinline{yield} keyword in C\#, Python and JavaScript.
+  \item The \lstinline{Shift} keyword for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
+  \item The \lstinline[language=Python]{yield} keyword for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
   \item The \lstinline{Fork} keyword for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
   \item The \lstinline{AutoClose} keyword to automatically close resources when exiting a scope, similar to the destructor feature in C++.
   \item The \lstinline{Monadic} keyword for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
@@ -70,7 +70,7 @@ println(generatedNumbers(2))
 
 Alice is a functional programming language developer. She wants to avoid mutable variables in the implementation. Unfortunately, a pseudo-random number generator usually has an internal state that are changed during generate new random number.
 
-With the help of the built-in keyword \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
+With the help of the built-in keyword \lstinline[language=Python]{yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
 \begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={generatedNumbers}]
 import com.thoughtworks.dsl.keywords.Yield
@@ -83,13 +83,13 @@ def aliceRandomGenerator(seed: Int): Stream[Int] = {
 }
 \end{lstlisting}
 
-\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the keyword \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
+\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the keyword \lstinline[language=Python]{yield}, and it will be resumed when the caller is looking for the next number.
 
-\lstinline{Yield} is a keyword to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific keyword \lstinline{Yield} can be used. More generally, \textbf{the return type is the specific domain of DSL.}
+\lstinline[language=Python]{yield} is a keyword to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific keyword \lstinline[language=Python]{yield} can be used. More generally, \textbf{the return type is the specific domain of DSL.}
 
 \subsection{Use case: logging}
 
-In this use case, we will demonstrate how to add the logging feature to existing functions using the \lstinline{Yield} keyword.
+In this use case, we will demonstrate how to add the logging feature to existing functions using the \lstinline[language=Python]{yield} keyword.
 
 Suppose Bob has a function to parse JSON text. The parser is fault-tolerant, since it returns the \lstinline{defaultValue} for invalid input  (Listing \ref{bobParser}).
 
@@ -105,11 +105,11 @@ def bobParser(jsonContent: String, defaultValue: JSONType): JSONType = {
 }
 \end{lstlisting}
 
-Then, Bob wants to add the logging feature to his existing parser. He learnt from Alice's use case, and wonders if he can \lstinline{Yield} log messages to a \lstinline{Stream[String]} during parsing.
+Then, Bob wants to add the logging feature to his existing parser. He learnt from Alice's use case, and wonders if he can \lstinline[language=Python]{yield} log messages to a \lstinline{Stream[String]} during parsing.
 
-However, unlike Alice's case, Bob's parser should return both the parsed JSON objects and the collected logs. It's impossible in C\#'s \lstinline{yield}, because \lstinline{yield} does not work in a method that returns a JSON object.
+However, unlike Alice's case, Bob's parser should return both the parsed JSON objects and the collected logs. It's impossible in C\#'s \lstinline[language=Python]{yield}, because \lstinline[language=Python]{yield} does not work in a method that returns a JSON object.
 
-Bob resolves the problem by creating a delimited continuation. The parsed JSON object is handled by a callback function instead of return value. Thus the return value is still a \lstinline{Stream}, allowing \lstinline{Yield}ing log messages (Listing \ref{bobLoggingParser}).
+Bob resolves the problem by creating a delimited continuation. The parsed JSON object is handled by a callback function instead of return value. Thus the return value is still a \lstinline{Stream}, allowing \lstinline[language=Python]{yield}ing log messages (Listing \ref{bobLoggingParser}).
 
 \begin{lstlisting}[caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
 import com.thoughtworks.dsl.Dsl.!!
@@ -182,7 +182,7 @@ logs should be(
 )
 \end{lstlisting}
 
-The use case of Bob's parser demonstrates how to enable additional keywords into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
+The use case of Bob's parser demonstrates how to enable additional keywords into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline[language=Python]{yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
@@ -195,9 +195,9 @@ In this use case, we will demonstrate how to use multiple library-defined keywor
 
 Suppose Carol is creating a line splitter from a file. Carol wants to lazily read each line of a file to a [[Stream]], and automatically close the file handle after reading the last line, and finally return the total number of lines.
 
-Carol will use the \lstinline{Yield} keyword to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} keyword to manage the life-cycle of the file handle.
+Carol will use the \lstinline[language=Python]{yield} keyword to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} keyword to manage the life-cycle of the file handle.
 
-\lstinline{Yield} keyword is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} keyword is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both keywords (Listing \ref{carolLineSplitter}).
+\lstinline[language=Python]{yield} keyword is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} keyword is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both keywords (Listing \ref{carolLineSplitter}).
 
 \begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
 import com.thoughtworks.dsl.Dsl.!!, !!.delay
@@ -248,11 +248,11 @@ In this use case, Carol created a function from three library-defined keywords.
 
 \begin{enumerate}
   \item \lstinline{AutoClose} for resource management, similar to C++'s RAII feature.
-  \item \lstinline{Yield} for lazily append values to a \lstinline{Stream}, similar to Python, C\# or ECMAScript's \lstinline{yield} keyword.
-  \item \lstinline{Shift} for awaiting a value from a task, similar to Python, C\# or ECMAScript's \lstinline{await} keyword.
+  \item \lstinline[language=Python]{yield} for lazily append values to a \lstinline{Stream}, similar to Python, C\# or ECMAScript's \lstinline[language=Python]{yield} keyword.
+  \item \lstinline{Shift} for awaiting a value from a task, similar to Python, C\# or ECMAScript's \lstinline[language=Python]{await} keyword.
 \end{enumerate}
 
-What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline{yield} and \lstinline{await} in one function, even when \lstinline{yield} and \lstinline{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline{yield} and \lstinline{await}, while our library-defined keywords are collaborative with arbitrary other keywords by composing extra domains on the return type.
+What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords are collaborative with arbitrary other keywords by composing extra domains on the return type.
 
 \section{Creating library-defined keywords}
 \label{Creating library-defined keywords}
@@ -261,7 +261,7 @@ What is interesting is that our library-defined keywords are more like first-cla
 % use Scala's underscore as a syntactic sugar to simplify his code. 
 
 
-% how a keyword user can create a custom collection on RAII-managed resource by using \lstinline{Yield} and \lstinline{AutoClose} keywords together.
+% how a keyword user can create a custom collection on RAII-managed resource by using \lstinline[language=Python]{yield} and \lstinline{AutoClose} keywords together.
 
 \section{Conclusion}
 \label{conclusion}
