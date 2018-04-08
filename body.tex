@@ -7,9 +7,9 @@ It's too trivial to reinvent the whole set of control flows for each DSL. A simp
 
 An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal synchronous code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
 
-Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on `stateless-future`, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
+Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
-All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic `each` method for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
+All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
 This paper describes a novel approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
 
@@ -194,7 +194,7 @@ The use case of Bob's parser demonstrates how to enable additional keywords into
 
 In this use case, we will demonstrate how to use multiple library-defined keywords in one function.
 
-Suppose Carol is creating a line splitter from a file. Carol wants to lazily read each line of a file to a [[Stream]], and automatically close the file handle after reading the last line, and finally return the total number of lines.
+Suppose Carol is creating a line splitter from a file. Carol wants to lazily read each line of a file to a \lstinline{Stream}, and automatically close the file handle after reading the last line, and finally return the total number of lines.
 
 Carol will use the \lstinline{Yield} keyword to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} keyword to manage the life-cycle of the file handle.
 
@@ -306,7 +306,7 @@ def daveHttpClient(url: URL): Task[String] = _ {
 
 Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} keywords. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
 
-The usage of `Task` is similar to previous examples in Section \ref{Using multiple keywords at once}. But we also provides \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps}.
+The usage of \lstinline{Task} is similar to previous examples in Section \ref{Using multiple keywords at once}. But we also provides \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps}.
 
 \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
 val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
@@ -314,7 +314,7 @@ fileContent should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
 
-Another useful keyword for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX `fork` system call.
+Another useful keyword for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX \lstinline{fork} system call.
 
 \lstinline{Fork} should be used inside a \lstinline{join} block, which collects the result of each forked control flow.
 
@@ -334,9 +334,99 @@ fileContent0 should startWith("HTTP/1.1 200 OK")
 fileContent1 should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
-The \lstinline{Task} implemented in Dsl.scala is light-weight and faster. See section \ref{Benchmark} to see the performance benchmark between \lstinline{com.thoughtworks.dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See section \ref{Benchmark} to see the performance benchmark between \lstinline{com.thoughtworks.dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
 
+\subsection{Monadic programming}
 
+Despite keywords directly implemented in \textit{Dsl.scala}, we also provide some adapters to monads and other type classes.
+
+The built-in \lstinline{Monadic} keyword can be used as an adaptor to \lstinline{scalaz.Monad}, to create monadic code from imperative syntax, similar to the !-notation in Idris.
+
+For example, suppose Erin is creating a program that counts lines of code under a directory. She uses the \lstinline{Monadic} keyword store the result in a \lstinline{Stream} of line count of each file (Listing \ref{erinMonadicCounter}).
+
+\begin{lstlisting}[caption={Erin's line of code counter, the monadic version},label={erinMonadicCounter}]
+
+import java.io.File
+import com.thoughtworks.dsl.keywords.Monadic
+import com.thoughtworks.dsl.domains.scalaz._
+import scalaz.std.stream._
+def erinMonadicCounter(file: File): Stream[Int] = Stream {
+  if (file.isDirectory) {
+    file.listFiles() match {
+      case null =>
+        // Unable to open `file`
+        !Monadic(Stream.empty[Int])
+      case children =>
+        // Import this implicit conversion to omit the Monadic keyword
+        import com.thoughtworks.dsl.keywords.Monadic.implicitMonadic
+        val child: File = !children.toStream
+        !erinMonadicCounter(child)
+    }
+  } else {
+    scala.io.Source.fromFile(file).getLines.size
+  }
+}
+\end{lstlisting}
+
+The previous code requires a \lstinline{toStream} conversion on \lstinline{children}, because \lstinline{children}'s type \lstinline{Array[File]} does not fit the \lstinline{F} type parameter in \lstinline{scalaz.Monad.bind} \cite{kenji2017scalaz}.
+
+There is a \lstinline{Each} keyword in \textit{Dsl.scala} to extract each element in a Scala collection, based on {CanBuildFrom} type class instead of monads. The \lstinline{Each} behavior is similar to \lstinline{Monadic}, except the collection type can vary.
+
+Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} keyword,
+even when the return type (or the domain) is still a \lstinline{Stream}.
+
+\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based keywords},label={erinMonadicCounter}]
+
+import java.io.File
+import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
+import com.thoughtworks.dsl.keywords.Each
+import com.thoughtworks.dsl.domains.scalaz._
+import scalaz.std.stream._
+def erinMixedCounter(file: File): Stream[Int] = Stream {
+  if (file.isDirectory) {
+    file.listFiles() match {
+      case null =>
+        // Unable to open `file`
+        !Stream.empty[Int]
+      case children =>
+        val child: File = !Each(children)
+        !erinMixedCounter(child)
+    }
+  } else {
+    scala.io.Source.fromFile(file).getLines.size
+  }
+}
+\end{lstlisting}
+
+As shown the \lstinline{erinMixedCounter}, Dsl.scala allows non-monadic keywords like \lstinline{Each} works along with monads, unlike Haskell's do-notation or Idris's !-notation.
+
+However, Erin still wants to add one more feature to the LOC counter. Considering the line counter implemented in previous example may be failed for some files,
+due to permission issue or other IO problem,
+Erin wants to use \lstinline{OptionT} monad transformer to mark those failed file as a \lstinline{None} (Listing \ref{erinTransformerCounter}).
+
+\begin{lstlisting}[caption={Erin's line of code counter, using an \lstinline{OptionT} monad transformer},label={erinTransformerCounter}]
+import scalaz._
+import java.io.File
+import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
+import com.thoughtworks.dsl.domains.scalaz._
+import scalaz.std.stream._
+def erinTransformerCounter(file: File): OptionT[Stream, Int] = OptionT.some {
+  if (file.isDirectory) {
+    file.listFiles() match {
+      case null =>
+        // Unable to open `file`
+        !OptionT.none[Stream, Int]
+      case children =>
+        val child: File = !Stream(children: _*)
+        !erinTransformerCounter(child)
+    }
+  } else {
+    scala.io.Source.fromFile(file).getLines.size
+  }
+}
+\end{lstlisting}
+
+Note that our keywords are adaptive to the domain it belongs to. Thus, instead of explicit \lstinline{!Monadic(OptionT.optionTMonadTrans.liftM(Stream(children: _*)))}, Erin can simply write \lstinline{!Stream(children: _*)}. This implicit lifting feature looks like Idris's effect monads \cite{brady2013programming}, though the mechanisms is different from \lstinline{implicit lift} in Idris.
 
 \section{Creating library-defined keywords}
 \label{Creating library-defined keywords}
