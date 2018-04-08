@@ -189,7 +189,8 @@ The use case of Bob's parser demonstrates how to enable additional keywords into
   \item Inserting an \lstinline{delay} character before the method block body.
 \end{enumerate}
 
-\subsection{Use case: reading lines from a resource}
+\subsection{Using multiple keywords at once}
+\label{Using multiple keywords at once}
 
 In this use case, we will demonstrate how to use multiple library-defined keywords in one function.
 
@@ -254,6 +255,89 @@ In this use case, Carol created a function from three library-defined keywords.
 
 What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords are collaborative with arbitrary other keywords by composing extra domains on the return type.
 
+\subsection{Fork / join in asynchronous programming}
+
+When \lstinline{Stream} or other domains is unnecessary,  \lstinline{TailRec[Unit] !! Throwable !! A} or the alias \lstinline{com.thoughtworks.dsl.task.Task} can be used as the default data type of task for asynchronous programming.
+
+For example, Dave wants to create an HTTP client, and those keywords could help.
+
+\begin{lstlisting}[caption={Dave's HTTP client},label={daveHttpClient}]
+import com.thoughtworks.dsl.task._
+import com.thoughtworks.dsl.keywords._, Shift.implicitShift, AsynchronousIo._
+import java.io._
+import java.net._
+import java.nio._, channels._
+
+def readAll(channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
+  if (destination.remaining > 0) {
+    val numberOfBytesRead: Int = !Read(channel, destination)
+    numberOfBytesRead match {
+      case -1 =>
+      case _  => !readAll(channel, destination)
+    }
+  } else {
+    throw new IOException("The response is too big to read.")
+  }
+}
+
+def writeAll[Domain](channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
+  while (destination.remaining > 0) {
+    !Write(channel, destination)
+  }
+}
+
+def daveHttpClient(url: URL): Task[String] = _ {
+  val socket = AsynchronousSocketChannel.open()
+  try {
+    val port = if (url.getPort == -1) 80 else url.getPort
+    val address = new InetSocketAddress(url.getHost, port)
+    !AsynchronousIo.Connect(socket, address)
+    val request = ByteBuffer.wrap(s"GET ${url.getPath} HTTP/1.1\r\nHost:${url.getHost}\r\nConnection:Close\r\n\r\n".getBytes)
+    !writeAll(socket, request)
+    val response = ByteBuffer.allocate(100000)
+    !readAll(socket, response)
+    response.flip()
+    io.Codec.UTF8.decoder.decode(response).toString
+  } finally {
+    socket.close()
+  }
+}
+\end{lstlisting}
+
+Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} keywords. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
+
+The usage of `Task` is similar to previous examples in Section \ref{Using multiple keywords at once}. But we also provides \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps}.
+
+\begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
+val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
+fileContent should startWith("HTTP/1.1 200 OK")
+\end{lstlisting}
+
+
+Another useful keyword for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX `fork` system call.
+
+\lstinline{Fork} should be used inside a \lstinline{join} block, which collects the result of each forked control flow.
+
+\begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
+import com.thoughtworks.dsl.keywords.Fork
+val Urls = Seq(
+  new URL("http://ftp.debian.org/debian/README.CD-manufacture"),
+  new URL("http://ftp.debian.org/debian/README")
+)
+def parallelTask: Task[Seq[String]] = Task.join {
+  val url = !Fork(Urls)
+  !daveHttpClient(url)
+}
+
+val Seq(fileContent0, fileContent1) = parallelTask.blockingAwait
+fileContent0 should startWith("HTTP/1.1 200 OK")
+fileContent1 should startWith("HTTP/1.1 200 OK")
+\end{lstlisting}
+
+The \lstinline{Task} implemented in Dsl.scala is light-weight and faster. See section \ref{Benchmark} to see the performance benchmark between \lstinline{com.thoughtworks.dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+
+
+
 \section{Creating library-defined keywords}
 \label{Creating library-defined keywords}
 
@@ -263,6 +347,8 @@ What is interesting is that our library-defined keywords are more like first-cla
 
 % how a keyword user can create a custom collection on RAII-managed resource by using \lstinline{Yield} and \lstinline{AutoClose} keywords together.
 
+\section{Benchmark}
+\label{Benchmark}
 \section{Conclusion}
 \label{conclusion}
 
