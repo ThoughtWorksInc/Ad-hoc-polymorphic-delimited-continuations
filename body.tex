@@ -4,24 +4,24 @@ Traditionally, the capable of a general purpose language can be extended to spec
 
 Instead of reinventing the whole set of control flows for each DSL, a more general approach is implementing a minimal interface for control flows for each domain, while the syntax of other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} or \lstinline{for} comprehension \cite{jones1998haskell,odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
-An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal synchronous code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
+An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
 
-Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
+Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
 All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
 This paper describes a novel approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
 
-\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those keywords are collaborative, as a library user can create one function that contains interleaved keywords from different vendors, along with ordinary Scala control flows.
+\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are collaborative, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flows.
 
 % TODO: link to other section.
-\textit{Dsl.scala} also ships with some built-in keywords, including:
+\textit{Dsl.scala} also ships with some built-in LDKs, including:
 \begin{itemize}
-  \item The \lstinline{Shift} keyword for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
-  \item The \lstinline{Yield} keyword for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
-  \item The \lstinline{Fork} keyword for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
-  \item The \lstinline{AutoClose} keyword to automatically close resources when exiting a scope, similar to the destructor feature in C++.
-  \item The \lstinline{Monadic} keyword for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
+  \item The \lstinline{Shift} LDK for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
+  \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
+  \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
+  \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
+  \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
 \end{itemize}
  
 
@@ -33,7 +33,7 @@ This paper describes a novel approach to resolve the collaboration problem, and 
 % \end{enumerate}
 % % By combining of the two assumptions, we build a DSL framework, and some examples of DSLs in various domains, including asynchronous or parallel programming, lazy stream generation, resource management.
 
-% % A DSL keyword in our framework can be adaptive to its contextual domain. A DSL user can create a single function that contains interleaved DSLs implemented by different vendors, along with ordinary Scala control flows.
+% % an LDK in our framework can be adaptive to its contextual domain. A DSL user can create a single function that contains interleaved DSLs implemented by different vendors, along with ordinary Scala control flows.
 
 % % We also provide some adapters to monad, which can be also used as a alternative syntactic sugar of monad comprehension.
 
@@ -50,9 +50,9 @@ This paper describes a novel approach to resolve the collaboration problem, and 
 % % three different function call mechanisms (call-by-name, call-by-value and lazy evaluation), references and assignment,
 % % nondeterminism, first-class continuations, and program tracing.
 
-\section{Using library-defined keywords}
+\section{Using library-defined keywords}\label{Using library-defined keywords}
 
-In this section, we will show some use cases from the keyword user's perspective.
+In this section, we will show some use cases from the perspective of the user of LDKs.
 
 \subsection{Creating generators}
 
@@ -69,7 +69,7 @@ println(generatedNumbers(2))
 
 Alice is a functional programming language developer. She wants to avoid mutable variables in the implementation. Unfortunately, a pseudo-random number generator usually has an internal state that are changed during generate new random number.
 
-With the help of the built-in keyword \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
+With the help of the built-in LDK \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
 \begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
 import com.thoughtworks.dsl.keywords.Yield
@@ -82,13 +82,13 @@ def aliceRandomGenerator(seed: Int): Stream[Int] = {
 }
 \end{lstlisting}
 
-\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the keyword \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
+\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the LDK \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
-\lstinline{Yield} is a keyword to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific keyword \lstinline{Yield} can be used. More generally, \textbf{the return type is the specific domain of DSL.}
+\lstinline{Yield} is an LDK to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific LDK \lstinline{Yield} can be used. More generally, all LDKs are domain-specific, where the word ``domain'' stands for the return type of the enclosing function.
 
 \subsection{Creating generators with an additional return value}
 
-In this use case, we will demonstrate how to add the logging feature to existing functions using the \lstinline{Yield} keyword.
+In this use case, we will demonstrate how to add the logging feature to existing functions using the \lstinline{Yield} LDK.
 
 Suppose Bob has a function to parse JSON text. The parser is fault-tolerant, since it returns the \lstinline{defaultValue} for invalid input  (Listing \ref{bobParser}).
 
@@ -181,22 +181,22 @@ logs should be(
 )
 \end{lstlisting}
 
-The use case of Bob's parser demonstrates how to enable additional keywords into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} keyword. Generally, a keyword user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
+The use case of Bob's parser demonstrates how to enable additional LDKs into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} LDK. Generally, an LDK user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
   \item Inserting an \lstinline{delay} character before the method block body.
 \end{enumerate}
 
-\subsection{Using multiple keywords at once}\label{Using multiple keywords at once}
+\subsection{Using multiple LDKs at once}\label{Using multiple LDKs at once}
 
 In this use case, we will demonstrate how to use multiple library-defined keywords in one function.
 
 Suppose Carol is creating a line splitter from a file. Carol wants to lazily read each line of a file to a \lstinline{Stream}, and automatically close the file handle after reading the last line, and finally return the total number of lines.
 
-Carol will use the \lstinline{Yield} keyword to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} keyword to manage the life-cycle of the file handle.
+Carol will use the \lstinline{Yield} LDK to append a line to the \lstinline{Stream}, and the \lstinline{AutoClose} LDK to manage the life-cycle of the file handle.
 
-\lstinline{Yield} keyword is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} keyword is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both keywords (Listing \ref{carolLineSplitter}).
+\lstinline{Yield} LDK is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} LDK is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both LDKs (Listing \ref{carolLineSplitter}).
 
 \begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
 import com.thoughtworks.dsl.Dsl.!!, !!.delay
@@ -222,7 +222,7 @@ def carolLineSplitter(path: Path): Stream[String] !! Throwable !! Int = delay {
 }
 \end{lstlisting}
 
-Note that \lstinline{(Stream[String] !! Throwable !! Int)} is a delimited continuation, Carol also needs \lstinline{Shift} keyword as the first-class delimited continuation operator\cite{danvy1990abstracting,asai2009typing} to create recursive calls.
+Note that \lstinline{(Stream[String] !! Throwable !! Int)} is a delimited continuation, Carol also needs \lstinline{Shift} LDK as the first-class delimited continuation operator\cite{danvy1990abstracting,asai2009typing} to create recursive calls.
 
 The type \lstinline{(Stream[String] !! Throwable !! Int)} returned from \lstinline{carolLineSplitter} contains the following data:
 
@@ -251,13 +251,13 @@ In this use case, Carol created a function from three library-defined keywords.
   \item \lstinline{Shift} for awaiting a value from a task, similar to Python, C\# or ECMAScript's \lstinline[language=Python]{await} keyword.
 \end{enumerate}
 
-What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords are collaborative with arbitrary other keywords by composing extra domains on the return type.
+What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords are collaborative with arbitrary other LDKs by composing extra domains on the return type.
 
 \subsection{Fork / join in asynchronous programming}
 
-When \lstinline{Stream} or other domains is unnecessary,  \lstinline{TailRec[Unit] !! Throwable !! A} or the alias \lstinline{com.thoughtworks.dsl.task.Task} can be used as the default data type of task for asynchronous programming.
+When \lstinline{Stream} or other domains is unnecessary, \lstinline{TailRec[Unit] !! Throwable !! A} or the alias \lstinline{com.thoughtworks.dsl.task.Task} can be used as the default data type of task for asynchronous programming.
 
-For example, Dave wants to create an HTTP client, and those keywords could help.
+For example, Suppose Dave is creating an HTTP client. He can implement the HTTP protocol in the \lstinline{Task} domain shown in Listing \ref{daveHttpClient}.
 
 \begin{lstlisting}[caption={Dave's HTTP client},label={daveHttpClient}]
 import com.thoughtworks.dsl.task._
@@ -302,9 +302,9 @@ def daveHttpClient(url: URL): Task[String] = _ {
 }
 \end{lstlisting}
 
-Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} keywords. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
+Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
 
-The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple keywords at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
+The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
 
 \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
 val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
@@ -312,7 +312,7 @@ fileContent should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
 
-Another useful keyword for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX \lstinline{fork} system call.
+Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX \lstinline{fork} system call.
 
 Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow (Listing \ref{usingDaveHttpClientInParallel}).
 
@@ -336,11 +336,11 @@ The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faste
 
 \subsection{Monadic programming}
 
-Despite keywords directly implemented in \textit{Dsl.scala}, we also provide some adapters to monads and other type classes.
+Despite LDKs directly implemented in \textit{Dsl.scala}, we also provide some LDKs as adapters to monads and other type classes.
 
-The built-in \lstinline{Monadic} keyword can be used as an adaptor to \lstinline{scalaz.Monad}, to create monadic code from imperative syntax, similar to the !-notation in Idris.
+The built-in \lstinline{Monadic} LDK can be used as an adaptor to \lstinline{scalaz.Monad}, to create monadic code from imperative syntax, similar to the !-notation in Idris.
 
-For example, suppose Erin is creating a program that counts lines of code under a directory. She uses the \lstinline{Monadic} keyword store the result in a \lstinline{Stream} of line count of each file (Listing \ref{erinMonadicCounter}).
+For example, suppose Erin is creating a program that counts lines of code under a directory. She uses the \lstinline{Monadic} LDK store the result in a \lstinline{Stream} of line count of each file (Listing \ref{erinMonadicCounter}).
 
 \begin{lstlisting}[caption={Erin's line of code counter, the monadic version},label={erinMonadicCounter}]
 
@@ -368,12 +368,12 @@ def erinMonadicCounter(file: File): Stream[Int] = Stream {
 
 The previous code requires a \lstinline{toStream} conversion on \lstinline{children}, because \lstinline{children}'s type \lstinline{Array[File]} does not fit the \lstinline{F} type parameter in \lstinline{scalaz.Monad.bind} \cite{kenji2017scalaz}.
 
-There is a \lstinline{Each} keyword in \textit{Dsl.scala} to extract each element in a Scala collection, based on {CanBuildFrom} type class instead of monads. The \lstinline{Each} behavior is similar to \lstinline{Monadic}, except the collection type can vary.
+There is a \lstinline{Each} LDK in \textit{Dsl.scala} to extract each element in a Scala collection, based on {CanBuildFrom} type class instead of monads. The \lstinline{Each} behavior is similar to \lstinline{Monadic}, except the collection type can vary.
 
-Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} keyword in Listing \ref{erinMixedCounter},
+Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} LDK in Listing \ref{erinMixedCounter},
 even when the enclosing domain is still a \lstinline{Stream}.
 
-\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based keywords},label={erinMixedCounter}]
+\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based LDKs},label={erinMixedCounter}]
 
 import java.io.File
 import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
@@ -396,11 +396,11 @@ def erinMixedCounter(file: File): Stream[Int] = Stream {
 }
 \end{lstlisting}
 
-As shown the \lstinline{erinMixedCounter}, Dsl.scala allows non-monadic keywords like \lstinline{Each} works along with monads, unlike Haskell's do-notation or Idris's !-notation.
+As shown the \lstinline{erinMixedCounter}, Dsl.scala allows \lstinline{Each} and other non-monadic LDKs to work along with monads, which is impossible in Haskell's do-notation or Idris's !-notation.
 
 However, Erin still wants to add one more feature to the LOC counter. Considering the line counter implemented in previous example may be failed for some files,
 due to permission issue or other IO problem,
-Erin wants to use \lstinline{OptionT} monad transformer to mark those failed file as a \lstinline{None} (Listing \ref{erinTransformerCounter}).
+Erin wants to use an \lstinline{OptionT} monad transformer to mark those failed file as a \lstinline{None} (Listing \ref{erinTransformerCounter}).
 
 \begin{lstlisting}[caption={Erin's line of code counter, using an \lstinline{OptionT} monad transformer},label={erinTransformerCounter}]
 import scalaz._
@@ -424,13 +424,11 @@ def erinTransformerCounter(file: File): OptionT[Stream, Int] = OptionT.some {
 }
 \end{lstlisting}
 
-Note that our keywords are adaptive to the domain it belongs to. Thus, instead of explicit \lstinline{!Monadic(OptionT.optionTMonadTrans.liftM(Stream(children: _*)))}, Erin can simply write \lstinline{!Stream(children: _*)}. This implicit lifting feature looks like Idris's effect monads \cite{brady2013programming}, though the mechanisms is different from \lstinline{implicit lift} in Idris.
+Note that our LDKs are adaptive to the domain it belongs to. Thus, instead of explicit lifting as \lstinline{!Monadic(OptionT.optionTMonadTrans.liftM(Stream(children: _*)))}, Erin can simply write \lstinline{!Stream(children: _*)}. This implicit lifting feature looks like Idris's effect monads \cite{brady2013programming}, though the mechanisms is different from \lstinline{implicit lift} in Idris.
 
 \section{Creating library-defined keywords}\label{Creating library-defined keywords}
 
-
-% use Scala's underscore as a syntactic sugar to simplify his code. 
-
+All the LDKs used in Section \ref{Using library-defined keywords} are optional libraries, which depend on a common compiler-time transformation rule, which is implemented as a Scala compiler plug-in.
 
 % how a keyword user can create a custom collection on RAII-managed resource by using \lstinline{Yield} and \lstinline{AutoClose} keywords together.
 
