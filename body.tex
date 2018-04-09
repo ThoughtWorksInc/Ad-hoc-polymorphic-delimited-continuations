@@ -6,13 +6,13 @@ Instead of reinventing the whole set of control flows for each DSL, a more gener
 
 An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
 
-Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific final result types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special final result type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
+Another generic interface of control flow is continuation, which is known as the mother of all monads \cite{piponi2008mother}, where control flows in specific domain can be supported by specific answer types of continuations. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert ordinary control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special answer type for akka actors. Unlike reinvented control flows in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple ordinary control flows along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
 All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
 This paper describes a novel approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
 
-\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are collaborative, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flows.
+\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are adaptive to the enclosing DSL, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flows.
 
 % TODO: link to other section.
 \textit{Dsl.scala} also ships with some built-in LDKs, including:
@@ -54,7 +54,7 @@ This paper describes a novel approach to resolve the collaboration problem, and 
 
 In this section, we will show some use cases from the perspective of the user of LDKs.
 
-\subsection{Creating generators}
+\subsection{Creating generators}\label{Creating generators}
 
 Suppose Alice is creating an Xorshift pseudo-random number generator \cite{marsaglia2003xorshift}, and she wants to store the generated numbers in a lazily evaluated infinite stream. 
 
@@ -146,7 +146,7 @@ def bobLoggingParserUnderscore(jsonContent: String, defaultValue: JSONType): Str
 Alternately, Bob can use the pre-defined function \lstinline{delay} \footnote{The difference between underscore and \lstinline{delay} will be discussed in Section \ref{Creating library-defined keywords}} instead of the underscore placeholder (Listing \ref{bobLoggingParserDelay}). 
 
 \begin{lstlisting}[caption={The implementation of Bob's logging parser, the delay version},label={bobLoggingParserDelay}]
-import com.thoughtworks.dsl.Dsl.delay
+import com.thoughtworks.dsl.Dsl.!!.delay
 def bobLoggingParserDelay(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = delay {
   !Yield(s"I am going to parse the JSON text $jsonContent...")
   JSON.parseRaw(jsonContent) match {
@@ -181,7 +181,7 @@ logs should be(
 )
 \end{lstlisting}
 
-The use case of Bob's parser demonstrates how to enable additional LDKs into existing functions. There are only few changes between \lstinline{bobLoggingParserDelay} and the original \lstinline{bobParser} in order to enable the \lstinline{Yield} LDK. Generally, an LDK user can introduce a new domain (i.e. the return value) to an existing method with the two changes:
+The use case of Bob's parser demonstrates how to enable additional LDKs into existing ordinary functions. Generally, an LDK user can introduce a new domain that supports more LDKs to an existing method with the two changes:
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
@@ -251,7 +251,7 @@ In this use case, Carol created a function from three library-defined keywords.
   \item \lstinline{Shift} for awaiting a value from a task, similar to Python, C\# or ECMAScript's \lstinline[language=Python]{await} keyword.
 \end{enumerate}
 
-What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords are collaborative with arbitrary other LDKs by composing extra domains on the return type.
+What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} in one function, even when \lstinline[language=Python]{yield} and \lstinline[language=Python]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python]{yield} and \lstinline[language=Python]{await}, while our library-defined keywords can collaborate with arbitrary other LDKs by composing extra domains on the return type.
 
 \subsection{Fork / join in asynchronous programming}
 
@@ -428,9 +428,134 @@ Note that our LDKs are adaptive to the domain it belongs to. Thus, instead of ex
 
 \section{Creating library-defined keywords}\label{Creating library-defined keywords}
 
-All the LDKs used in Section \ref{Using library-defined keywords} are optional libraries, which depend on a common compiler-time transformation rule, which is implemented as a Scala compiler plug-in.
+LDKs introduced in Section \ref{Using library-defined keywords} are optional libraries, activated by common compiler-time CPS-transform rules, which are implemented as a Scala compiler plug-in. In this section, we will present the implementation of some LDKs, and the compiler-time generated code for !-notations written by LDK users.
 
-% how a keyword user can create a custom collection on RAII-managed resource by using \lstinline{Yield} and \lstinline{AutoClose} keywords together.
+Our compiler plug-in support both nonadaptive LDKs and adapters LDKs. A nonadaptive LDK must belongs to in an exact domain, which an adaptive LDK works in various types of domains.
+
+\subsection{Nonadaptive LDKs}
+
+A Nonadaptive LDK is a delimited continuation along with a syntactic \lstinline{unary_!} method for !-notation. For example, the \lstinline{Yield} LDK described at Section \ref{Creating generators} can be implemented as shown in Listing \ref{NonadaptiveYield}.
+
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
+import com.thoughtworks.dsl.Dsl.shift
+case class Yield[Element](element: Element) {
+
+  @shift
+  @compileTimeOnly("Calls to this method will be translated to cpsApply calls by the compiler plug-in")
+  def unary_! : Value = ???
+
+  @inline
+  def cpsApply(handler: Unit => Stream[Element]): Stream[Element] = {
+    new Stream.Cons(element, handler(()))
+  }
+}
+\end{lstlisting}
+
+Calls to \lstinline{unary_!} method will be translated to \lstinline{cpsApply} calls by our compiler plug-in. For example, \lstinline{aliceRandomGenerator} in Listing \ref{aliceRandomGenerator} will be translated to the code shown in Listing \ref{translatedAliceRandomGenerator} by our compiler plug-in:
+
+\begin{lstlisting}[caption={The translated code for Alice's pseudo-random number generator},label={translatedAliceRandomGenerator}]
+def aliceRandomGenerator(seed: Int): Stream[Int] = {
+  val tmp1 = seed ^ (seed << 13)
+  val tmp2 = tmp1 ^ (tmp1 >>> 17)
+  val tmp3 = tmp2 ^ (tmp2 << 5)
+  Yield(tmp3).cpsApply { _: Unit =>
+    aliceRandomGenerator(tmp3)
+  }
+}
+\end{lstlisting}
+
+And Listing \ref{bobLoggingParser} or Listing \ref{bobLoggingParserUnderscore} will be translated to Listing \ref{translatedBobLoggingParser}:
+
+\begin{lstlisting}[caption={The translated code for Bob's parser},label={translatedBobLoggingParser}]
+import com.thoughtworks.dsl.Dsl.!!
+def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
+  Yield(s"I am going to parse the JSON text $jsonContent...").cpsApply { _: Unit =>
+    JSON.parseRaw(jsonContent) match {
+      case Some(json) =>
+        Yield(s"Succeeded to parse $jsonContent").cpsApply { _: Unit =>
+          callback(json)
+        }
+      case None =>
+        Yield(s"Failed to parse $jsonContent").cpsApply { _: Unit =>
+          callback(defaultValue)
+        }
+    }
+  }
+}
+\end{lstlisting}
+
+Our compiler plug-in performs CPS-transform in a similar approach to Scala Continuations \cite{rompf2009implementing}, with two minor differences.
+
+\begin{enumerate}
+  \item Our compiler plug-in will insert a \lstinline{reset} wrapper for every functions and methods, thus all return type is kept as is, and no \lstinline{@cps} type is exposed.
+  \item Our compiler plug-in only performs CPS-transform explicitly on the !-notation, instead of implicit conversion between \lstinline{@cps} type and ordinary type.
+\end{enumerate}
+
+Because of the former difference, CPS-translated function produced by our compiler plug-in always has the same answer type as the return type, which is called the ``domain'' of a DSL. Even then, our approach still allows explicit answer type by using the underscore trick shown in Listing \ref{bobLoggingParserUnderscore}.
+
+\subsection{Adaptive LDKs}
+
+All \textit{Dsl.scala} built-in LDKs are adaptive, which can collaborate with other LDKs. For example, \lstinline{Yield} is adaptive, since it works not only in functions that return \lstinline{Stream}, but also \lstinline{(Stream !! _)}, \lstinline{(Stream !! _ !! _)}, etc. 
+
+Those LDKs are adaptive because they all extends the \lstinline{trait Keyword}, which has a ad-hoc polymorphic \lstinline{cpsApply} method (Listing \ref{Keyword}).
+
+\begin{lstlisting}[caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
+trait Keyword[Self, Value] extends Any { this: Self =>
+
+  @shift
+  @compileTimeOnly("Calls to this method will be translated to cpsApply calls by the compiler plug-in")
+  def unary_! : Value = ???
+
+  def cpsApply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+    dsl.interpret(this, handler)
+  }
+
+}
+\end{lstlisting}
+
+The functionality of \lstinline{cpsApply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
+
+\begin{lstlisting}[caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
+trait Dsl[Keyword, Domain, Value] {
+  def interpret(keyword: Keyword, handler: Value => Domain): Domain
+}
+\end{lstlisting}
+
+The adaptive version of \lstinline{Yield} LDK ships with a type class instance of \lstinline{Dsl[Yield[Element], Stream[Element], Unit]}, allowing the \lstinline{!Yield} notation in functions that return \lstinline{Stream[Element]}
+
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
+case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit]
+
+object Yield {
+  implicit def yieldDsl[Element]: Dsl[Yield[Element], Stream[Element], Unit] =
+    new Dsl[Yield[Element], Stream[Element], Unit] {
+      def interpret(keyword: Yield[Element], mapper: Unit => Stream[Element]): Stream[Element] = {
+        new Stream.Cons(keyword.element, mapper(()))
+      }
+    }
+}
+\end{lstlisting}
+
+To make \lstinline{Yield} LDK available in other domain, just provides \lstinline{Dsl} type class instance for other types.
+
+Listing \ref{continuationDsl} shows a \lstinline{Dsl} allows a LDK be available in \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.
+
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={continuationDsl}]
+implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
+  implicit restDsl: Dsl[Keyword, Domain, KeywordValue]
+): Dsl[Keyword, Domain !! Value, KeywordValue] = {
+  new Dsl[Keyword, Domain !! Value, KeywordValue] {
+    def interpret(keyword: Keyword, handler: KeywordValue => Domain !! Value): Domain !! Value = {
+      (continue: Value => Domain) =>
+        restDsl.interpret(keyword, { a =>
+          handler(a)(continue)
+        })
+    }
+  }
+}
+\end{lstlisting}
+
+Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !! JsonType)} domain as shown in Listing \ref{bobLoggingParserDelay}, because the type class \lstinline{Dsl[Yield[String], Stream !! JsonType, Unit]} can be implicitly resolved as \lstinline{continuationDsl(yieldDsl)}.
 
 \section{Benchmark}\label{Benchmark}
 
