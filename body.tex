@@ -536,9 +536,9 @@ object Yield {
 }
 \end{lstlisting}
 
-To make \lstinline{Yield} LDK available in other domain, just provides \lstinline{Dsl} type class instance for other types.
+To make \lstinline{Yield} LDK available for another domain, just provide a \lstinline{Dsl} type class instance for other types.
 
-Listing \ref{continuationDsl} shows a \lstinline{Dsl} allows a LDK be available in \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.
+Listing \ref{continuationDsl} shows a \lstinline{Dsl} that allows a LDK be available for \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.
 
 \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={continuationDsl}]
 implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
