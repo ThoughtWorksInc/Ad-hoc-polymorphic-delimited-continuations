@@ -1,9 +1,8 @@
-\section{Introduction}
-\label{introduction}
+\section{Introduction}\label{Introduction}
 
-Traditionally, the capable of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language). For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not able to be embedded in \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because Akka's DSL split code into small closures, preventing ordinary control flows from crossing the boundary of those closures. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSL.
+Traditionally, the capable of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language). For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not able to be embedded in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because Akka's DSL split code into small closures, preventing ordinary control flows from crossing the boundary of those closures. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSL.
 
-It's too trivial to reinvent the whole set of control flows for each DSL. A simpler approach is only implementing a minimal interface required for control flows for each domain, while the syntax of other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} or \lstinline{for} comprehension \cite{jones1998haskell,odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
+Instead of reinventing the whole set of control flows for each DSL, a more general approach is implementing a minimal interface for control flows for each domain, while the syntax of other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} or \lstinline{for} comprehension \cite{jones1998haskell,odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
 An idea to avoid inconsistency between domain-specific control flow and ordinary control flow is converting ordinary control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal synchronous code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of ordinary control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary Scala control flow.
 
@@ -72,7 +71,7 @@ Alice is a functional programming language developer. She wants to avoid mutable
 
 With the help of the built-in keyword \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
-\begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={generatedNumbers}]
+\begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
 import com.thoughtworks.dsl.keywords.Yield
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
@@ -189,8 +188,7 @@ The use case of Bob's parser demonstrates how to enable additional keywords into
   \item Inserting an \lstinline{delay} character before the method block body.
 \end{enumerate}
 
-\subsection{Using multiple keywords at once}
-\label{Using multiple keywords at once}
+\subsection{Using multiple keywords at once}\label{Using multiple keywords at once}
 
 In this use case, we will demonstrate how to use multiple library-defined keywords in one function.
 
@@ -306,7 +304,7 @@ def daveHttpClient(url: URL): Task[String] = _ {
 
 Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} keywords. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
 
-The usage of \lstinline{Task} is similar to previous examples in Section \ref{Using multiple keywords at once}. But we also provides \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps}.
+The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple keywords at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
 
 \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
 val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
@@ -316,7 +314,7 @@ fileContent should startWith("HTTP/1.1 200 OK")
 
 Another useful keyword for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX \lstinline{fork} system call.
 
-\lstinline{Fork} should be used inside a \lstinline{join} block, which collects the result of each forked control flow.
+Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow (Listing \ref{usingDaveHttpClientInParallel}).
 
 \begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
 import com.thoughtworks.dsl.keywords.Fork
@@ -372,10 +370,10 @@ The previous code requires a \lstinline{toStream} conversion on \lstinline{child
 
 There is a \lstinline{Each} keyword in \textit{Dsl.scala} to extract each element in a Scala collection, based on {CanBuildFrom} type class instead of monads. The \lstinline{Each} behavior is similar to \lstinline{Monadic}, except the collection type can vary.
 
-Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} keyword,
-even when the return type (or the domain) is still a \lstinline{Stream}.
+Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} keyword in Listing \ref{erinMixedCounter},
+even when the enclosing domain is still a \lstinline{Stream}.
 
-\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based keywords},label={erinMonadicCounter}]
+\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based keywords},label={erinMixedCounter}]
 
 import java.io.File
 import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
@@ -428,8 +426,7 @@ def erinTransformerCounter(file: File): OptionT[Stream, Int] = OptionT.some {
 
 Note that our keywords are adaptive to the domain it belongs to. Thus, instead of explicit \lstinline{!Monadic(OptionT.optionTMonadTrans.liftM(Stream(children: _*)))}, Erin can simply write \lstinline{!Stream(children: _*)}. This implicit lifting feature looks like Idris's effect monads \cite{brady2013programming}, though the mechanisms is different from \lstinline{implicit lift} in Idris.
 
-\section{Creating library-defined keywords}
-\label{Creating library-defined keywords}
+\section{Creating library-defined keywords}\label{Creating library-defined keywords}
 
 
 % use Scala's underscore as a syntactic sugar to simplify his code. 
@@ -437,10 +434,9 @@ Note that our keywords are adaptive to the domain it belongs to. Thus, instead o
 
 % how a keyword user can create a custom collection on RAII-managed resource by using \lstinline{Yield} and \lstinline{AutoClose} keywords together.
 
-\section{Benchmark}
-\label{Benchmark}
-\section{Conclusion}
-\label{conclusion}
+\section{Benchmark}\label{Benchmark}
+
+\section{Conclusion}\label{conclusion}
 
 
 \clearpage
