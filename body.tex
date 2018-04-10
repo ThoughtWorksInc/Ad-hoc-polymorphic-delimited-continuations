@@ -143,11 +143,11 @@ def bobLoggingParserUnderscore(jsonContent: String, defaultValue: JSONType): Str
 }
 \end{lstlisting}
 
-Alternately, Bob can use the pre-defined function \lstinline{delay} \footnote{The difference between underscore and \lstinline{delay} will be discussed in Section \ref{Creating library-defined keywords}} instead of the underscore placeholder (Listing \ref{bobLoggingParserDelay}). 
+Alternately, Bob can use the pre-defined function \lstinline{reset} \footnote{The difference between underscore and \lstinline{reset} will be discussed in Section \ref{Creating library-defined keywords}} instead of the underscore placeholder (Listing \ref{bobLoggingParserReset}). 
 
-\begin{lstlisting}[caption={The implementation of Bob's logging parser, the delay version},label={bobLoggingParserDelay}]
-import com.thoughtworks.dsl.Dsl.!!.delay
-def bobLoggingParserDelay(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = delay {
+\begin{lstlisting}[caption={The implementation of Bob's logging parser, the reset version},label={bobLoggingParserReset}]
+import com.thoughtworks.dsl.Dsl.!!.reset
+def bobLoggingParserReset(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = reset {
   !Yield(s"I am going to parse the JSON text $jsonContent...")
   JSON.parseRaw(jsonContent) match {
     case Some(json) =>
@@ -160,7 +160,7 @@ def bobLoggingParserDelay(jsonContent: String, defaultValue: JSONType): Stream[S
 }
 \end{lstlisting}
 
-Then, the user of Bob's parser calls \lstinline{bobLoggingParserDelay} to handle both results (Listing \ref{usingBobLoggingParserDelay}):
+Then, the user of Bob's parser calls \lstinline{bobLoggingParserReset} to handle both results (Listing \ref{usingBobLoggingParserDelay}):
 
 \begin{enumerate}
   \item The JSON result in a callback function.
@@ -168,7 +168,7 @@ Then, the user of Bob's parser calls \lstinline{bobLoggingParserDelay} to handle
 \end{enumerate}
 
 \begin{lstlisting}[caption={Using Bob's parser},label={usingBobLoggingParserDelay}]
-val logs = bobLoggingParserDelay("""{"key":"value"}""", JSONArray(Nil)) { json =>
+val logs = bobLoggingParserReset("""{"key":"value"}""", JSONArray(Nil)) { json =>
   json should be(JSONObject(Map("key" -> "value")))
   Stream("done")
 }
@@ -185,7 +185,7 @@ The use case of Bob's parser demonstrates how to enable additional LDKs into exi
 
 \begin{enumerate}
   \item Inserting a \lstinline{NewDomain!!} prefix to the return type (\lstinline{Stream[String]!!} in Bob's case).
-  \item Inserting an \lstinline{delay} character before the method block body.
+  \item Inserting an \lstinline{reset} before the method block body.
 \end{enumerate}
 
 \subsection{Using multiple LDKs at once}\label{Using multiple LDKs at once}
@@ -199,13 +199,13 @@ Carol will use the \lstinline{Yield} LDK to append a line to the \lstinline{Stre
 \lstinline{Yield} LDK is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} LDK is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both LDKs (Listing \ref{carolLineSplitter}).
 
 \begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
-import com.thoughtworks.dsl.Dsl.!!, !!.delay
+import com.thoughtworks.dsl.Dsl.!!, !!.reset
 import com.thoughtworks.dsl.keywords.AutoClose
 import com.thoughtworks.dsl.keywords.Yield
 import com.thoughtworks.dsl.keywords.Shift
 import java.nio.file._, Files._
 
-def carolLineSplitter(path: Path): Stream[String] !! Throwable !! Int = delay {
+def carolLineSplitter(path: Path): Stream[String] !! Throwable !! Int = reset {
   val reader = !AutoClose(newBufferedReader(path))
 
   def loop(lineNumber: Int): Stream[String] !! Throwable !! Int = _ {
@@ -555,9 +555,10 @@ implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
 }
 \end{lstlisting}
 
-Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !! JsonType)} domain as shown in Listing \ref{bobLoggingParserDelay}, because the type class \lstinline{Dsl[Yield[String], Stream !! JsonType, Unit]} can be implicitly resolved as \lstinline{continuationDsl(yieldDsl)}.
+Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !! JsonType)} domain as shown in Listing \ref{bobLoggingParserReset}, because the type class \lstinline{Dsl[Yield[String], Stream !! JsonType, Unit]} can be implicitly resolved as \lstinline{continuationDsl(yieldDsl)}.
 
 \section{Benchmark}\label{Benchmark}
+
 
 \section{Conclusion}\label{conclusion}
 
