@@ -19,6 +19,7 @@ This paper describes a novel approach to resolve the collaboration problem, and 
 \begin{itemize}
   \item The \lstinline{Shift} LDK for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
   \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
+  \item The \lstinline{Each} LDK for traversing each element of a collection, similar to \lstinline{for}, \lstinline{yield} keywords for Scala collections.
   \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
   \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
   \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
@@ -72,7 +73,7 @@ Alice is a functional programming language developer. She wants to avoid mutable
 With the help of the built-in LDK \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
 \begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
-import com.thoughtworks.dsl.keywords.Yield
+import dsl.keywords.Yield
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -111,7 +112,7 @@ However, unlike Alice's case, Bob's parser should return both the parsed JSON ob
 Bob resolves the problem by creating a delimited continuation. The parsed JSON object is handled by a callback function instead of return value. Thus the return value is still a \lstinline{Stream}, allowing \lstinline{Yield}ing log messages (Listing \ref{bobLoggingParser}).
 
 \begin{lstlisting}[caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
-import com.thoughtworks.dsl.Dsl.!!
+import dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
   !Yield(s"I am going to parse the JSON text $jsonContent...")
   JSON.parseRaw(jsonContent) match {
@@ -200,10 +201,10 @@ Carol will use the \lstinline{Yield} LDK to append a line to the \lstinline{Stre
 \lstinline{Yield} LDK is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream !! _)} as we already knows. Similarly, the \lstinline{AutoClose} LDK is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both LDKs (Listing \ref{carolLineSplitter}).
 
 \begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
-import com.thoughtworks.dsl.Dsl.!!
-import com.thoughtworks.dsl.keywords.AutoClose
-import com.thoughtworks.dsl.keywords.Yield
-import com.thoughtworks.dsl.keywords.Shift
+import dsl.Dsl.!!
+import dsl.keywords.AutoClose
+import dsl.keywords.Yield
+import dsl.keywords.Shift
 import java.nio.file._, Files._
 
 def carolLineSplitter(path: Path): Stream[String] !! Throwable !! Int = reset {
@@ -256,13 +257,13 @@ What is interesting is that our library-defined keywords are more like first-cla
 
 \subsection{Fork / join in asynchronous programming}
 
-When \lstinline{Stream} or other domains is unnecessary, \lstinline{TailRec[Unit] !! Throwable !! A} or the alias \lstinline{com.thoughtworks.dsl.task.Task} can be used as the default data type of task for asynchronous programming.
+When \lstinline{Stream} or other domains is unnecessary, \lstinline{TailRec[Unit] !! Throwable !! A} or the alias \lstinline{dsl.task.Task} can be used as the default data type of task for asynchronous programming.
 
 For example, Suppose Dave is creating an HTTP client. He can implement the HTTP protocol in the \lstinline{Task} domain shown in Listing \ref{daveHttpClient}.
 
 \begin{lstlisting}[caption={Dave's HTTP client},label={daveHttpClient}]
-import com.thoughtworks.dsl.task._
-import com.thoughtworks.dsl.keywords._, Shift.implicitShift, AsynchronousIo._
+import dsl.task._
+import dsl.keywords._, Shift.implicitShift, AsynchronousIo._
 import java.io._
 import java.net._
 import java.nio._, channels._
@@ -303,9 +304,9 @@ def daveHttpClient(url: URL): Task[String] = _ {
 }
 \end{lstlisting}
 
-Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{com.thoughtworks.dsl.keywords.AsynchronousIo}, working with \lstinline{com.thoughtworks.dsl.task.Task} domain.
+Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{dsl.keywords.AsynchronousIo}, working with \lstinline{dsl.task.Task} domain.
 
-The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{com.thoughtworks.dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
+The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
 
 \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
 val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
@@ -315,16 +316,16 @@ fileContent should startWith("HTTP/1.1 200 OK")
 
 Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flows are executed in parallel, similar to the POSIX \lstinline{fork} system call.
 
-Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow (Listing \ref{usingDaveHttpClientInParallel}).
+Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow in parallel (Listing \ref{usingDaveHttpClientInParallel}).
 
 \begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
-import com.thoughtworks.dsl.keywords.Fork
+import dsl.keywords.Fork
 val Urls = Seq(
   new URL("http://ftp.debian.org/debian/README.CD-manufacture"),
   new URL("http://ftp.debian.org/debian/README")
 )
 def parallelTask: Task[Seq[String]] = Task.join {
-  val url = !Fork(Urls)
+  val url: URL = !Fork(Urls)
   !daveHttpClient(url)
 }
 
@@ -333,21 +334,23 @@ fileContent0 should startWith("HTTP/1.1 200 OK")
 fileContent1 should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
-The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See section \ref{Benchmark} to see the performance benchmark between \lstinline{com.thoughtworks.dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+In addition to \lstinline{Fork}, we also provide the \lstinline{Each} LDK, whose type signature is identical with \lstinline{Fork}, to sequentially execute tasks. If Dave replaces the \lstinline{Fork} to \lstinline{Each}, those URLs will be fetched in sequentially. Other usage of \lstinline{Each} LDK will be introduced in Section \ref{Monadic programming}.
 
-\subsection{Monadic programming}
+The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See section \ref{Benchmark} for the performance benchmark between \lstinline{dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+
+\subsection{Monadic programming}\label{Monadic programming}
 
 Despite LDKs directly implemented in \textit{Dsl.scala}, we also provide some LDKs as adapters to monads and other type classes.
 
-The built-in \lstinline{Monadic} LDK can be used as an adaptor to \lstinline{scalaz.Monad}, to create monadic code from imperative syntax, similar to the !-notation in Idris.
+The built-in \lstinline{Monadic} LDK can be used as an adapter to \lstinline{scalaz.Monad}, to create monadic code from imperative syntax, similar to the !-notation in Idris.
 
 For example, suppose Erin is creating a program that counts lines of code under a directory. She uses the \lstinline{Monadic} LDK store the result in a \lstinline{Stream} of line count of each file (Listing \ref{erinMonadicCounter}).
 
 \begin{lstlisting}[caption={Erin's line of code counter, the monadic version},label={erinMonadicCounter}]
 
 import java.io.File
-import com.thoughtworks.dsl.keywords.Monadic
-import com.thoughtworks.dsl.domains.scalaz._
+import dsl.keywords.Monadic
+import dsl.domains.scalaz._
 import scalaz.std.stream._
 def erinMonadicCounter(file: File): Stream[Int] = Stream {
   if (file.isDirectory) {
@@ -357,7 +360,7 @@ def erinMonadicCounter(file: File): Stream[Int] = Stream {
         !Monadic(Stream.empty[Int])
       case children =>
         // Import this implicit conversion to omit the Monadic keyword
-        import com.thoughtworks.dsl.keywords.Monadic.implicitMonadic
+        import dsl.keywords.Monadic.implicitMonadic
         val child: File = !children.toStream
         !erinMonadicCounter(child)
     }
@@ -377,9 +380,9 @@ even when the enclosing domain is still a \lstinline{Stream}.
 \begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based LDKs},label={erinMixedCounter}]
 
 import java.io.File
-import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
-import com.thoughtworks.dsl.keywords.Each
-import com.thoughtworks.dsl.domains.scalaz._
+import dsl.keywords.Monadic, Monadic.implicitMonadic
+import dsl.keywords.Each
+import dsl.domains.scalaz._
 import scalaz.std.stream._
 def erinMixedCounter(file: File): Stream[Int] = Stream {
   if (file.isDirectory) {
@@ -406,8 +409,8 @@ Erin wants to use an \lstinline{OptionT} monad transformer to mark those failed 
 \begin{lstlisting}[caption={Erin's line of code counter, using an \lstinline{OptionT} monad transformer},label={erinTransformerCounter}]
 import scalaz._
 import java.io.File
-import com.thoughtworks.dsl.keywords.Monadic, Monadic.implicitMonadic
-import com.thoughtworks.dsl.domains.scalaz._
+import dsl.keywords.Monadic, Monadic.implicitMonadic
+import dsl.domains.scalaz._
 import scalaz.std.stream._
 def erinTransformerCounter(file: File): OptionT[Stream, Int] = OptionT.some {
   if (file.isDirectory) {
@@ -438,7 +441,7 @@ LDKs introduced in Section \ref{Using library-defined keywords} are optional lib
 A Nonadaptive LDK is simply a delimited continuation, along with a syntactic \lstinline{unary_!} method for !-notation. For example, the \lstinline{Yield} LDK described at Section \ref{Creating generators} can be implemented as shown in Listing \ref{NonadaptiveYield}.
 
 \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
-import com.thoughtworks.dsl.Dsl.shift
+import dsl.Dsl.shift
 case class Yield[Element](element: Element) {
 
   @shift
@@ -468,7 +471,7 @@ def aliceRandomGenerator(seed: Int): Stream[Int] = {
 And Listing \ref{bobLoggingParser} or Listing \ref{bobLoggingParserUnderscore} will be translated to Listing \ref{translatedBobLoggingParser}:
 
 \begin{lstlisting}[caption={The translated code for Bob's parser},label={translatedBobLoggingParser}]
-import com.thoughtworks.dsl.Dsl.!!
+import dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
   Yield(s"I am going to parse the JSON text $jsonContent...").cpsApply { _: Unit =>
     JSON.parseRaw(jsonContent) match {
@@ -566,9 +569,128 @@ Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !
 
 \section{Benchmark}\label{Benchmark}
 
+We created some benchmarks to evaluate the computational performance of code generated by our compiler plug-in for LDKs, especially, we are interesting how LDKs affect the performance in a effect system that support both asynchronous and synchronous effects.
+
+In spite of LDKs of adapters to monads or other effect systems (see Section \ref{Monadic programming}), the preferred effect system for LDKs is the \lstinline{Task} alias of continuation-passing style function (Listing \ref{Task}):
+
+\begin{lstlisting}[caption={The definition of \lstinline{Task}, the preferred effect system using with LDKs},label={Task}]
+type !![Domain, Value] = (Value => Domain) => Domain
+type TaskDomain = TailRec[Unit] !! Throwable
+type Task[Value] = TaskDomain !! Value
+\end{lstlisting}
+
+We used Java Microbenchmark Harness (JMH) to benchmark the performance of LDKs in \lstinline{Task} domain, along with other combination of effect system with syntax notations, listed below:
+
+\begin{itemize}
+  \item Monix tasks \cite{nedelcu2017monix} + \lstinline{for} comprehension
+  \item Cats effects \cite{typelevel2017cats} + \lstinline{for} comprehension
+  \item Scalaz Concurrent \cite{kenji2017scalaz} + \lstinline{for} comprehension
+  \item Scala Future \cite{haller2012sip} + Scala Async \cite{haller2013sip}
+  \item Scala Continuation library + corresponding compiler plug-in \cite{rompf2009implementing}
+\end{itemize}
+
+% The implementation of Monix tasks, Cats effects, Scalaz Concurrent are monadic data types based on sealed ADTs.
+
+\subsection{The performance baseline of effect systems}
+
+In order to measure the performance impact due to syntax notations, we have to determine the performance baseline of different effect systems at first.
+
+The purpose of the first benchmark to create the most efficient implementation of a sum function in each effect system. The benchmark did the following work for each effect system:
+
+\begin{itemize}
+  \item Creating a \lstinline{List[X[Int]]} of 1000 tasks, where \lstinline{X} is the data type of task in the effect system.
+  \item Performing recursive right-associated ``binds'' on each element to add the \lstinline{Int} to an accumulator, and finally produce a \lstinline{X[Int]} as a task of the sum result.
+  \item Running the task and blocking awaiting the result.
+\end{itemize}
+
+Note that the tasks in the list is executed in the current thread or in a thread pool. We keep each task returning a simple pure value, because we want to measure the overhead of effect systems, not the task itself.
+
+The ``bind'' operation means the primitive operation of each effect system. For Monix tasks, Cats effects, Scalaz Concurrent and Scala Continuations library, the ``bind'' operation is \lstinline{flatMap}; for \textit{Dsl.scala}, the ``bind'' operation is \lstinline{cpsApply}, which may or may not be equivalent to \lstinline{flatMap} according to the type of the current domain.
+
+We use the !-notation to perform the \lstinline{cpsApply} in \textit{Dsl.scala}. The !-notation results the exact same Java bytecode to manually passing a callback function to \lstinline{cpsApply} (Listing \ref{RawSum.dsl}).
+
+\begin{lstlisting}[caption={The most efficient implementation of sum based on CPS function alias},label={RawSum.dsl}]
+@inline def loop(tasks: List[Task[Int]], accumulator: Int = 0)(callback: Int => TaskDomain): TaskDomain = {
+  tasks match {
+    case head :: tail =>
+      // Expand to: head.cpsApply(i => loop(tail, i + accumulator)(callback))
+      loop(tail, !head + accumulator)(callback)
+    case Nil =>
+      callback(accumulator)
+  }
+}
+
+Task.blockingAwait(loop(dslTasks), TimeOut)
+\end{lstlisting}
+
+However, syntactic sugars for other effect systems, including \lstinline{for} comprehension, Scala Async and Scala Continuation plugin's CPS-transform, are not used in favor of raw \lstinline{flatMap} calls, in case of decay of the performance. Listing \ref{RawSum.future} shows the benchmark code for Scala Futures, but all the other effect systems are similar.
+
+\begin{lstlisting}[caption={The most efficient implementation of sum based on Scala Futures},label={RawSum.future}]
+
+@inline def loop(tasks: List[Future[Int]], accumulator: Int = 0): Future[Int] = {
+  tasks match {
+    case head :: tail =>
+      head.flatMap { i =>
+        loop(tail, i + accumulator)
+      }
+    case Nil =>
+      Future.successful(accumulator)
+  }
+}
+
+Await.result(loop(inputFutures), TimeOut)
+\end{lstlisting}
+
+The benchmark result is shown in Table \ref{RawSum} (larger is better):
+
+\begin{table}[htbp]
+  \begin{tabular}{r|l|rl}
+    \multicolumn{1}{c|}{\texttt{Benchmark}} & \texttt{listSize} & \multicolumn{2}{c}{\texttt{Score, ops/s}} \\
+   \hline
+   \texttt{MultiThreadAsynchronous.cats} & \texttt{1000} & \texttt{9691.384} & \scriptsize $\pm$ \texttt{230.816}  \\
+   \texttt{SingleThreadTailRecursion.scala} & \texttt{1000} & \texttt{94.980} & \scriptsize $\pm$ \texttt{5.014}  \\
+   \texttt{SingleThreadTailRecursion.scalaz} & \texttt{1000} & \texttt{4886.507} & \scriptsize $\pm$ \texttt{109.839}  \\
+  \end{tabular}
+  \caption{The benchmark result of most efficient sum implementation for each effect system}
+  \label{RawSum}
+\end{table}
+
+The \lstinline{Task} alias of continuation-passing style function used with \textit{Dsl.scala} is quite fast. \textit{Dsl.scala}, Monix and Cats Effects score on top 3 positions for either tasks running in the current thread or in a thread pool.
+
+\subsection{The performance impact due to syntactic notations}
+
+In this section, we will present the performance impact when refactor the 
+
+
+\subsection{The performance impact due to monad transformers}
+
+% TODO
+
+% The scenario of the 
+% first benchmark 
+
+% In the above benchmarks 
+% In our implementation, the native effect systems is continuation of
+
+
+
+% What we are inst
+% Effect systems
+
+% The first benchmark is 
+
+% Our compiler plugin generates very efficient code.
+
+
+% Our implementation 
+% The interpreter
 
 \section{Conclusion}\label{conclusion}
 
+The idea of LDK is simple. It is merely an ad-hoc polymorphic delimited continuation, interpreted by a domain-specific type class. However, the split of LDK and its interpreter dramatically improves both extensibility and computational performance in comparison to ordinary delimited continuation.
+
+% This paper describes a simple improvement on delimited continuation. We split
+%  A  domain-specific polymorphic function. the LDK  xx
 
 \clearpage
 % Appendix
