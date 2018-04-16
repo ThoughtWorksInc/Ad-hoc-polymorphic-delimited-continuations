@@ -36,7 +36,7 @@ Suppose Alice is creating an Xorshift pseudo-random number generator \cite{marsa
 
 The usage of Alice's pseudo-random number generator is shown as below:
 
-\begin{lstlisting}[float=htbp,caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
+\begin{lstlisting}[caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
 val generatedNumbers = aliceRandomGenerator(seed = 2463534242)
 println(generatedNumbers(0))
 println(generatedNumbers(1))
@@ -47,7 +47,7 @@ Alice is a functional programming language developer. She wants to avoid mutable
 
 With the help of the built-in LDK \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
-\begin{lstlisting}[float=htbp,caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
+\begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
 import dsl.keywords.Yield
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
@@ -68,7 +68,7 @@ In this use case, we will demonstrate how to add logging to existing functions u
 
 Suppose Bob has a function to parse JSON text. The parser is fault-tolerant, since it returns the \lstinline{defaultValue} for invalid input  (Listing \ref{bobParser}).
 
-\begin{lstlisting}[float=htbp,caption={The original implementation of Bob's parser},label={bobParser}]
+\begin{lstlisting}[caption={The original implementation of Bob's parser},label={bobParser}]
 import scala.util.parsing.json._
 def bobParser(jsonContent: String, defaultValue: JSONType): JSONType = {
   JSON.parseRaw(jsonContent) match {
@@ -86,7 +86,7 @@ However, unlike Alice's case, Bob's parser should return both the parsed JSON ob
 
 Bob resolves the problem by creating a delimited continuation. The parsed JSON object is handled by a callback function instead of return value. Thus the return value is still a \lstinline{Stream}, allowing \lstinline{Yield}ing log messages (Listing \ref{bobLoggingParser}).
 
-\begin{lstlisting}[float=htbp,caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
+\begin{lstlisting}[caption={The implementation of Bob's logging parser},label={bobLoggingParser}]
 import dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
   !Yield(s"I am going to parse the JSON text $jsonContent...")
@@ -105,7 +105,7 @@ The return type of Bob's new parser is \lstinline{(Stream[String] !! JSONType)},
 
 After Bob created the first version of delimited continuation, he then found that the closure can be simplified with the help of Scala's placeholder syntax (Listing \ref{bobLoggingParserUnderscore}).
 
-\begin{lstlisting}[float=htbp,caption={The implementation of Bob's logging parser, the underscore placeholder version},label={bobLoggingParserUnderscore}]
+\begin{lstlisting}[caption={The implementation of Bob's logging parser, the underscore placeholder version},label={bobLoggingParserUnderscore}]
 def bobLoggingParserUnderscore(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = _ {
   !Yield(s"I am going to parse the JSON text $jsonContent...")
   JSON.parseRaw(jsonContent) match {
@@ -121,7 +121,7 @@ def bobLoggingParserUnderscore(jsonContent: String, defaultValue: JSONType): Str
 
 Alternately, Bob can use the pre-defined function \lstinline{reset} instead of the underscore placeholder (Listing \ref{bobLoggingParserReset}).
 
-\begin{lstlisting}[float=htbp,caption={The implementation of Bob's logging parser, the reset version},label={bobLoggingParserReset}]
+\begin{lstlisting}[caption={The implementation of Bob's logging parser, the reset version},label={bobLoggingParserReset}]
 def reset[R, A](a: => A): R !! A = _(a)
 
 def bobLoggingParserReset(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = reset {
@@ -144,7 +144,7 @@ Then, the user of Bob's parser calls \lstinline{bobLoggingParserReset} to handle
   \item The logs from return value.
 \end{enumerate}
 
-\begin{lstlisting}[float=htbp,caption={Using Bob's parser},label={usingBobLoggingParserDelay}]
+\begin{lstlisting}[caption={Using Bob's parser},label={usingBobLoggingParserDelay}]
 val logs = bobLoggingParserReset("""{"key":"value"}""", JSONArray(Nil)) { json =>
   json should be(JSONObject(Map("key" -> "value")))
   Stream("done")
@@ -175,7 +175,7 @@ Carol will use the \lstinline{Yield} LDK to append a line to the \lstinline{Stre
 
 \lstinline{Yield} LDK is only available in a function that returns \lstinline{Stream} or \lstinline{(Stream[_] !! _)} as we already knows. Similarly, the \lstinline{AutoClose} LDK is only available in a function that returns \lstinline{(_ !! Throwable !! _)}. So, Carol makes her line splitter return \lstinline{(Stream[String] !! Throwable !! Int)} to enable both LDKs (Listing \ref{carolLineSplitter}).
 
-\begin{lstlisting}[float=htbp,caption={Carol's line splitter},label={carolLineSplitter}]
+\begin{lstlisting}[caption={Carol's line splitter},label={carolLineSplitter}]
 import dsl.Dsl.!!
 import dsl.keywords.AutoClose
 import dsl.keywords.Yield
@@ -211,7 +211,7 @@ The type \lstinline{(Stream[String] !! Throwable !! Int)} returned from \lstinli
 
 The example code of using Carol's line splitter is shown in Listing \ref{usingCarolLineSplitter}.
 
-\begin{lstlisting}[float=htbp,caption={Using Carol's line splitter},label={usingCarolLineSplitter}]
+\begin{lstlisting}[caption={Using Carol's line splitter},label={usingCarolLineSplitter}]
 val allLines: Stream[String] = carolLineSplitter(Paths.get("multiline.txt")) { numberOfLines: Int =>
   println(s"There are ${numberOfLines} lines in multiline.txt")
   Function.const(Stream.empty)(_)
@@ -236,7 +236,7 @@ We provided a type alias \lstinline{type Task[A] = TailRec[Unit] !! Throwable !!
 
 For example, Suppose Dave is creating an HTTP client. He can implement the HTTP protocol in the \lstinline{Task} domain shown in Listing \ref{daveHttpClient}.
 
-\begin{lstlisting}[float=htbp,caption={Dave's HTTP client},label={daveHttpClient}]
+\begin{lstlisting}[caption={Dave's HTTP client},label={daveHttpClient}]
 import dsl.task._
 import dsl.keywords._, Shift.implicitShift, AsynchronousIo._
 import java.io._
@@ -285,7 +285,7 @@ In this example, Dave imported \lstinline{implicitShift}, which is an implicit c
 
 The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
 
-\begin{lstlisting}[float=htbp,caption={Using Dave's http client},label={usingDaveHttpClient}]
+\begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
 val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
 fileContent should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
@@ -295,7 +295,7 @@ Another useful LDK for asynchronous programming is \lstinline{Fork}, which dupli
 
 Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow in parallel (Listing \ref{usingDaveHttpClientInParallel}).
 
-\begin{lstlisting}[float=htbp,caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
+\begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
 import dsl.keywords.Fork
 val Urls = Seq(
   new URL("http://ftp.debian.org/debian/README.CD-manufacture"),
@@ -323,7 +323,7 @@ The built-in \lstinline{Monadic} LDK can be used as an adapter to \lstinline{sca
 
 For example, suppose Erin is creating a program that counts lines of code under a directory. She uses the \lstinline{Monadic} LDK store the result in a \lstinline{Stream} of line count of each file (Listing \ref{erinMonadicCounter}).
 
-\begin{lstlisting}[float=htbp,caption={Erin's line of code counter, the monadic version},label={erinMonadicCounter}]
+\begin{lstlisting}[caption={Erin's line of code counter, the monadic version},label={erinMonadicCounter}]
 
 import java.io.File
 import dsl.keywords.Monadic
@@ -354,7 +354,7 @@ There is a \lstinline{Each} LDK in \textit{Dsl.scala} to extract each element in
 Thus, Erin can extract each element from an \lstinline{Array} with the help of \lstinline{Each} LDK in Listing \ref{erinMixedCounter},
 even when the enclosing domain is still a \lstinline{Stream}.
 
-\begin{lstlisting}[float=htbp,caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based LDKs},label={erinMixedCounter}]
+\begin{lstlisting}[caption={Erin's line of code counter, mixed \lstinline{Monad}-based and \lstinline{CanBuildFrom}-based LDKs},label={erinMixedCounter}]
 
 import java.io.File
 import dsl.keywords.Monadic, Monadic.implicitMonadic
@@ -383,7 +383,7 @@ However, Erin still wants to add one more feature to the LOC counter. Considerin
 due to permission issue or other IO problem,
 Erin wants to use an \lstinline{OptionT} monad transformer to mark those failed file as a \lstinline{None} (Listing \ref{erinTransformerCounter}).
 
-\begin{lstlisting}[float=htbp,caption={Erin's line of code counter, using an \lstinline{OptionT} monad transformer},label={erinTransformerCounter}]
+\begin{lstlisting}[caption={Erin's line of code counter, using an \lstinline{OptionT} monad transformer},label={erinTransformerCounter}]
 import scalaz._
 import java.io.File
 import dsl.keywords.Monadic, Monadic.implicitMonadic
@@ -417,7 +417,7 @@ LDKs introduced in Section \ref{Using library-defined keywords} are optional lib
 
 A Nonadaptive LDK is simply a delimited continuation, along with a syntactic \lstinline{unary_!} method for !-notation. For example, the \lstinline{Yield} LDK described at Section \ref{Creating generators} can be implemented as shown in Listing \ref{NonadaptiveYield}.
 
-\begin{lstlisting}[float=htbp,caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
 import dsl.Dsl.shift
 case class Yield[Element](element: Element) {
 
@@ -434,7 +434,7 @@ case class Yield[Element](element: Element) {
 
 Calls to \lstinline{unary_!} method will be translated to \lstinline{cpsApply} calls by our compiler plug-in. For example, \lstinline{aliceRandomGenerator} in Listing \ref{aliceRandomGenerator} will be translated to the code shown in Listing \ref{translatedAliceRandomGenerator} by our compiler plug-in:
 
-\begin{lstlisting}[float=htbp,caption={The translated code for Alice's pseudo-random number generator},label={translatedAliceRandomGenerator}]
+\begin{lstlisting}[caption={The translated code for Alice's pseudo-random number generator},label={translatedAliceRandomGenerator}]
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -447,7 +447,7 @@ def aliceRandomGenerator(seed: Int): Stream[Int] = {
 
 And Listing \ref{bobLoggingParser} or Listing \ref{bobLoggingParserUnderscore} will be translated to Listing \ref{translatedBobLoggingParser}:
 
-\begin{lstlisting}[float=htbp,caption={The translated code for Bob's parser},label={translatedBobLoggingParser}]
+\begin{lstlisting}[caption={The translated code for Bob's parser},label={translatedBobLoggingParser}]
 import dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
   Yield(s"I am going to parse the JSON text $jsonContent...").cpsApply { _: Unit =>
@@ -486,7 +486,7 @@ All \textit{Dsl.scala} built-in LDKs are adaptive, which can collaborate with ot
 
 Those LDKs are adaptive because they all extends the \lstinline{trait Keyword}, which has a ad-hoc polymorphic \lstinline{cpsApply} method (Listing \ref{Keyword}).
 
-\begin{lstlisting}[float=htbp,caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
+\begin{lstlisting}[caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
 trait Keyword[Self, Value] extends Any { this: Self =>
 
   @shift
@@ -502,7 +502,7 @@ trait Keyword[Self, Value] extends Any { this: Self =>
 
 The functionality of \lstinline{cpsApply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
 
-\begin{lstlisting}[float=htbp,caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
+\begin{lstlisting}[caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
 trait Dsl[Keyword, Domain, Value] {
   def interpret(keyword: Keyword, handler: Value => Domain): Domain
 }
@@ -510,7 +510,7 @@ trait Dsl[Keyword, Domain, Value] {
 
 The adaptive version of \lstinline{Yield} LDK ships with a type class instance of \lstinline{Dsl[Yield[Element], Stream[Element], Unit]}, allowing the \lstinline{!Yield} notation in functions that return \lstinline{Stream[Element]}
 
-\begin{lstlisting}[float=htbp,caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
 case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit]
 
 object Yield {
@@ -527,7 +527,7 @@ To make \lstinline{Yield} LDK available for another domain, just provide a \lsti
 
 Listing \ref{continuationDsl} shows a \lstinline{Dsl} that allows an LDK be available for \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.  \footnote{LDKs is also adaptive to domains other than continuations, such as a heterogeneous list that contains multiple sub-domains.}
 
-\begin{lstlisting}[float=htbp,caption={The \lstinline{Yield} LDK, the adaptive version},label={continuationDsl}]
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={continuationDsl}]
 implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
   implicit restDsl: Dsl[Keyword, Domain, KeywordValue]
 ): Dsl[Keyword, Domain !! Value, KeywordValue] = {
@@ -787,7 +787,7 @@ Note that reduced sum can be implemented in either left-associated recursion or 
   \label{RightAssociatedSum}
 \end{table}
 
-The result demonstrates that our implementation of our !-notation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark, the \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for} comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for} comprehension is always underoptimized.
+The result demonstrates that the !-notation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark. The \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for} comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for} comprehension is always underoptimized due to the inefficient \lstinline{map}.
 
 \subsection{The performance of collection manipulation in effect systems}
 
@@ -953,7 +953,7 @@ The benchmarks in Section \ref{Benchmark} demonstrated that our approach of trip
   \label{comparison}
 \end{table}
 
-The capacity of LDKs is the superset of both monads and ordinary delimited continuations, thus LDKs can be used in various domains, including asynchronous or parallel programming, lazy stream generation, collection manipulation, resource management, etc. But unlike monads or ordinary delimited continuations, an LDK user can use multiple LDKs for different domains at once, along with ordinary control flow and ordinary types. No manually lifting is required, just like first-class features.
+The capacity of LDKs is the superset of both monads and ordinary delimited continuations, thus LDKs can be used in various domains they can be, including asynchronous or parallel programming, lazy stream generation, collection manipulation, resource management, etc. But unlike monads or ordinary delimited continuations, an LDK user can use multiple LDKs for different domains at once, along with ordinary control flow and ordinary types. No manually lifting is required, just like first-class features.
 
 \clearpage
 % Appendix
