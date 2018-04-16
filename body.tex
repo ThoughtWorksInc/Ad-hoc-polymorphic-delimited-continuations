@@ -797,7 +797,7 @@ In this section, we will present the benchmark result for computing the Cartesia
 
 \subsubsection{The performance baseline}
 
-As we did in sum benchmarks, we created some benchmarks to maximize the performance for Cartesian product. Our benchmarks create the Cartesian product from \lstinline{traverseM} for Scala Future, Cats Effect, Scalaz Concurrnet and Monix Tasks. Listing \ref{RawCartesianPruduct.future} shows the benchmark code for Scala Future.
+As we did in sum benchmarks, we created some benchmarks to maximize the performance for Cartesian product. Our benchmarks create the Cartesian product from \lstinline{traverseM} for Scala Future, Cats Effect, Scalaz Concurrent and Monix Tasks. Listing \ref{RawCartesianPruduct.future} shows the benchmark code for Scala Future.
 
 \begin{lstlisting}[float=htbp,caption={Cartesian product for Scala Future, based on \lstinline{traverseM}},label={RawCartesianPruduct.future}]
 import scala.concurrent.Future
