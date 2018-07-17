@@ -15,15 +15,42 @@ Monad transformers \cite{liang1995monad} is a popular technique to solve the col
 However, deeply nested transformed monad was considered inefficient in  due to the nested \lstinline{lift}. An alternative approach proposed by
 \cite{kiselyov2013extensible} is effect handlers. In effect handler approach, the DSL ``script'' is written in an universal monadic type \lstinline{Eff}, which allows multiple DSLs in one \lstinline{do} block. Each DSL is considered as an effect, which is dispatched by \lstinline{Eff} to the specific \lstinline{Handler}. This approach is heavy-weight, since only expressions written in \lstinline{Eff} script are able to use DSLs defined in effect handlers. Additional conversion is required to retrieve the ``raw'' data type from an \lstinline{Eff} \lstinline{do} block.
 
-This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. 
+This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. The definition of the type class is shown in Listing~\ref{Dsl}
 
-Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach allows a DSL code block contain interleaved heterogeneous DSLs, which are interpreted by different \lstinline{Dsl} type class instances. No intermediate \lstinline{Monad} for dispatching is used. The difference of architecture between effect handler approach and our approach is shown in Figure~\ref{eff-architecture} and Figure~\ref{dsl-architecture}.
+\begin{lstlisting}[caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
+trait Dsl[Keyword, Domain, Value] {
+  def interpret(keyword: Keyword, handler: Value => Domain): Domain
+}
+\end{lstlisting}
 
+Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach allows a DSL code block contain interleaved heterogeneous DSLs, which are called \lstinline{Keyword}s, interpreted by different \lstinline{Dsl} type class instances. Instead of returning an intermediate script type like \lstinline{Eff}, the return type of a DSL code block can vary as long as it supports operations used in it. No intermediate \lstinline{Monad} for dispatching is used. The difference of architecture between effect handler approach and our approach is shown in Figure~\ref{eff-architecture} and Figure~\ref{dsl-architecture}.
 
 \begin{figure}[h t b p]
-  \begin{dot2tex}[dot]
+  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.78,transform shape}]
   digraph {
-    TODO -> TODO
+  	rankdir=LR
+
+  	subgraph cluster_code_block {
+      graph [ label="\textrm{a code block that returns an \lstinline{Eff}}" ]
+      
+      Effect_0
+      Effect_1
+      Effect_2
+      Effect_dots [ label="{\vdots}" shape=none ]
+      Effect_n
+    }
+    
+    Effect_0 -> "Eff"  [ label="\textrm{interpreted by}" ]
+    "Eff" -> Handler_0 [ label="\textrm{dispatched to}" ]
+    Effect_1 -> "Eff"  [ label="\textrm{interpreted by}" ]
+    "Eff" -> Handler_1 [ label="\textrm{dispatched to}" ]
+    Effect_2 -> "Eff"  [ label="\textrm{interpreted by}" ]
+    "Eff" -> Handler_2 [ label="\textrm{dispatched to}" ]
+    Handler_dots  [ label="{\vdots}" shape=none ]
+    Effect_dots -> "Eff"  [ style=invis ]
+    "Eff" -> Handler_dots [ style=invis ]
+    Effect_n -> "Eff"  [ label="\textrm{interpreted by}" ]
+    "Eff" -> Handler_n [ label="\textrm{dispatched to}" ]
   }
   \end{dot2tex}
 
@@ -31,15 +58,56 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach all
   \label{eff-architecture}
 \end{figure}
 
+
 \begin{figure}[h t b p]
-  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.54,transform shape}]
+  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
   digraph {
-    TODO -> TODO
+  	rankdir=LR
+
+  	subgraph cluster_code_block {
+      graph [ label="\textrm{a code block that returns any compatible type}" ]
+      Keyword_0
+      Keyword_1
+      Keyword_2
+      Keyword_dots [ label="{\vdots}" shape=none ]
+      Keyword_n
+    }
+
+    Keyword_0 -> Dsl_0 [ label="\textrm{interpreted by}" ]
+    Keyword_1 -> Dsl_1 [ label="\textrm{interpreted by}" ]
+    Keyword_2 -> Dsl_2 [ label="\textrm{interpreted by}" ]
+    Keyword_dots -> Dsl_dots [ style=invis ]
+    Keyword_n -> Dsl_n [ label="\textrm{interpreted by}" ]
+
+    Dsl_dots [ label="{\vdots}" shape=none ]
   }
   \end{dot2tex}
 
   \caption{The architecture of \lstinline{Dsl} approach}
   \label{dsl-architecture}
+\end{figure}
+
+\lstinline{Dsl} type class
+In comparison to vanilla delimited-continuation, our \lstinline{Keyword}
+
+\begin{figure}[h t b p]
+  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
+  digraph {
+  	rankdir=LR
+
+  	subgraph cluster_code_block {
+      graph [ label="\textrm{a code block that returns a \lstinline{Cont}}" ]
+      Cont_0
+      Cont_1
+      Cont_2
+      Cont_dots [ label="{\vdots}" shape=none ]
+      Cont_n
+    }
+  }
+  \end{dot2tex}
+
+  \caption{The architecture of vanilla delimited-continuation approach}
+  \label{cont-architecture}
 \end{figure}
 
 
@@ -539,12 +607,6 @@ trait Keyword[Self, Value] extends Any { this: Self =>
 \end{lstlisting}
 
 The functionality of \lstinline{cpsApply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
-
-\begin{lstlisting}[caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
-trait Dsl[Keyword, Domain, Value] {
-  def interpret(keyword: Keyword, handler: Value => Domain): Domain
-}
-\end{lstlisting}
 
 The adaptive version of \lstinline{Yield} LDK ships with a type class instance of \lstinline{Dsl[Yield[Element], Stream[Element], Unit]}, allowing the \lstinline{!Yield} notation in functions that return \lstinline{Stream[Element]}
 
