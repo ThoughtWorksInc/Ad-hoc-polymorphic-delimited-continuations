@@ -78,7 +78,7 @@
 % Document starts
 \begin{document}
 % Title portion
-\title{Dsl.scala: creating library-defined keywords from ad-hoc polymorphic delimited continuations}
+\title{Unifying monads and continuations}
 %  \titlenote{This is a titlenote}
 % \subtitle{creating collaborative domain-specific languages with control flow}
 %  \subtitlenote{Subtitle note}
@@ -97,11 +97,10 @@
 
 
 \begin{abstract}
-The semantics of a programming language are defined by its keywords, which traditionally require special treatment by the compiler. Thus, the capacity of the programming language is not extensible by libraries, unless using compiler plug-ins, AST macros, code generation, or other metaprogramming technologies.
+We designed and implemented a framework for creating extensible Domain-Specific Languages that consists of library-defined keywords.
+First-class language features in other programming languages can be implemented as libraries with the help of our framework.
 
-Our goal is making the control flow of a programming language extensible. We discovered a novel approach to create library-defined keywords used in control flow. Those keywords are interpreted by libraries instead of the compiler. No metaprogramming knowledge is required for keyword authors.
-
-Library-defined keywords are collaborative. An application developer can create a single function that contains interleaved keywords from different libraries, along with ordinary language control flows.
+The core concept in our framework is the type class \texttt{Dsl}, which can be considered as both the ad-hoc polymorphic version of delimited continuation and a more generic version of \texttt{Monad}. Thus it can be also used as a statically typed extensible effect system that are more efficient and more concise than existing \texttt{Monad}-based effect systems.
 \end{abstract}
 
 

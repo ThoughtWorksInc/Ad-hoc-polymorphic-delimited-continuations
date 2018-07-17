@@ -2,7 +2,7 @@
 
 Traditionally, the capacity of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
 
-Instead of reinventing the whole set of control flow for each DSL, a more general approach is implementing a minimal interface for control flow for each domain, while other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only have to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} notation \cite{jones1998haskell} or \lstinline{for} comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
+Instead of reinventing the whole set of control flow for each DSL, a more general approach is implementing a minimal interface for control flow for each domain, while other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} notation \cite{jones1998haskell} or \lstinline{for} comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
 An idea to avoid incompatible domain-specific control flow is converting direct style control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of direct style control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary direct style code.
 
@@ -10,9 +10,47 @@ Another generic interface of control flow is delimited continuation, which is kn
 
 All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
-\cite{kiselyov2013extensible} introduced effect handlers to solve the collaboration problem. However, the solution is heavy weight, only expressions written in the special \lstinline{Eff} language are able to use DSLs defined in effect handlers.
+Monad transformers \cite{liang1995monad} is a popular technique to solve the collaboration problem. The basic idea is to use a \lstinline{lift} function to convert different monadic type into the same transformed monadic type. Thus \lstinline{do} block of transformed monadic type can contain different DSL operations as long as they can be \lstinline{lift}ed. With the help of additional type classes, those \lstinline{lift} operations can be performed automatically.
 
-This paper describes a lighter-weight approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
+However, deeply nested transformed monad was considered inefficient in  due to the nested \lstinline{lift}. An alternative approach proposed by
+\cite{kiselyov2013extensible} is effect handlers. In effect handler approach, the DSL ``script'' is written in an universal monadic type \lstinline{Eff}, which allows multiple DSLs in one \lstinline{do} block. Each DSL is considered as an effect, which is dispatched by \lstinline{Eff} to the specific \lstinline{Handler}. This approach is heavy-weight, since only expressions written in \lstinline{Eff} script are able to use DSLs defined in effect handlers. Additional conversion is required to retrieve the ``raw'' data type from an \lstinline{Eff} \lstinline{do} block.
+
+This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. 
+
+Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach allows a DSL code block contain interleaved heterogeneous DSLs, which are interpreted by different \lstinline{Dsl} type class instances. No intermediate \lstinline{Monad} for dispatching is used. The difference of architecture between effect handler approach and our approach is shown in Figure~\ref{eff-architecture} and Figure~\ref{dsl-architecture}.
+
+
+\begin{figure}[h t b p]
+  \begin{dot2tex}[dot]
+  digraph {
+    TODO -> TODO
+  }
+  \end{dot2tex}
+
+  \caption{The architecture of \lstinline{Eff} approach}
+  \label{eff-architecture}
+\end{figure}
+
+\begin{figure}[h t b p]
+  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.54,transform shape}]
+  digraph {
+    TODO -> TODO
+  }
+  \end{dot2tex}
+
+  \caption{The architecture of \lstinline{Dsl} approach}
+  \label{dsl-architecture}
+\end{figure}
+
+
+ \lstinline{arg}
+
+describes a lighter-weight approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
+
+
+
+
+TODO:
 
 \textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are adaptive to the enclosing DSL, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flow. Unlike \lstinline{Eff}, an LDK is non-intrusive, can be added into an existing function as an optional first-class feature.
 
