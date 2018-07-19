@@ -15,9 +15,9 @@ Monad transformers \cite{liang1995monad} is a popular technique to solve the col
 However, deeply nested transformed monad was considered inefficient in  due to the nested \lstinline{lift}. An alternative approach proposed by
 \cite{kiselyov2013extensible} is effect handlers. In effect handler approach, the DSL ``script'' is written in an universal monadic type \lstinline{Eff}, which allows multiple DSLs in one \lstinline{do} block. Each DSL is considered as an effect, which is dispatched by \lstinline{Eff} to the specific \lstinline{Handler}. This approach is heavy-weight, since only expressions written in \lstinline{Eff} script are able to use DSLs defined in effect handlers. Additional conversion is required to retrieve the ``raw'' data type from an \lstinline{Eff} \lstinline{do} block.
 
-This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. The definition of the type class is shown in Listing~\ref{Dsl}
+This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. The definition of the type class is shown in Listing~\ref{Dsl}.
 
-\begin{lstlisting}[caption={The type class to interpret \lstinline{cpsApply}},label={Dsl}]
+\begin{lstlisting}[caption={The definition of \lstinline{Dsl} type class  \footnote{All code examples in this paper except Section~\ref{other-language} are written in Scala}},label={Dsl}]
 trait Dsl[Keyword, Domain, Value] {
   def interpret(keyword: Keyword, handler: Value => Domain): Domain
 }
@@ -58,6 +58,25 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach all
   \label{eff-architecture}
 \end{figure}
 
+\begin{figure}[h t b p]
+  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
+  digraph {
+  	rankdir=LR
+
+  	subgraph cluster_code_block {
+      graph [ label="\textrm{a code block that returns a \lstinline{Cont}}" ]
+      Cont_0
+      Cont_1
+      Cont_2
+      Cont_dots [ label="{\vdots}" shape=none ]
+      Cont_n
+    }
+  }
+  \end{dot2tex}
+
+  \caption{The architecture of vanilla delimited-continuation approach}
+  \label{cont-architecture}
+\end{figure}
 
 \begin{figure}[h t b p]
   \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
@@ -87,28 +106,24 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, our approach all
   \label{dsl-architecture}
 \end{figure}
 
-\lstinline{Dsl} type class
-In comparison to vanilla delimited-continuation, our \lstinline{Keyword}
+Vanilla delimited-continuations can be defined as a function to register a callback function (\lstinline{type Cont[Domain, Value] = (Value => Domain) => Domain}), which is similar to the signature of \lstinline{interpret} function in \lstinline{Dsl} type class. The difference is that a \lstinline{Cont} itself contains the implementation of an operation while in our approach each operation is ad-hoc polymorphic to the \lstinline{Domain} by separating to the syntactic \lstinline{Keyword} and its implementation \lstinline{Dsl}, as shown in Figure~\ref{cont-architecture} and Figure~\ref{dsl-architecture}.
 
-\begin{figure}[h t b p]
-  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
-  digraph {
-  	rankdir=LR
+By unifying \lstinline{Monad} and \lstinline{Cont}, \lstinline{Dsl} type class \lstinline{Dsl} type class 
 
-  	subgraph cluster_code_block {
-      graph [ label="\textrm{a code block that returns a \lstinline{Cont}}" ]
-      Cont_0
-      Cont_1
-      Cont_2
-      Cont_dots [ label="{\vdots}" shape=none ]
-      Cont_n
-    }
-  }
-  \end{dot2tex}
 
-  \caption{The architecture of vanilla delimited-continuation approach}
-  \label{cont-architecture}
-\end{figure}
+In the rest sections of this paper, we will present the use cases of \lstinline{Dsl} type class, along with an implementation in Scala, \textit{Dsl.scala}, including:
+
+\begin{enumerate}
+  \item Simulating \lstinline{Monad} to create imperative code blocks;
+  \item Multiple operations
+
+  and Adapting Use \lstinline{Dsl} as a replacement of \lstinline{Monad} to create imperative block of monadic data types.
+\end{enumerate}
+
+Along with the \lstinline{Dsl} type class, we also provide a Scala compiler plug-in to perform CPS-transformation for types that has corresponding \lstinline{Dsl} type class. Since the capacity of \lstinline{Dsl} type class is a superset of \lstinline{Monad}, the compiler plug-in allows Idris-like !-notation \cite{brady2013idris} direct style DSL for either monadic data type or other return types.
+
+
+
 
 
  \lstinline{arg}
@@ -1009,6 +1024,9 @@ This time, Cats Effects are not benchmarked due to lack of \lstinline{ListT} in 
 \end{table}
 
 Despite the trivial manual lift calls in \lstinline{for} comprehension, the monad transformer approach causes terrible computational performance in comparison to manually called \lstinline{traverseM}. In contrast, the performance of \textit{Dsl.scala} even got improved when \lstinline{cellTask} is inlined into \lstinline{listTask}.
+
+\section{\lstinline{Dsl} type class in languages other than Scala}\label{other-language}
+
 
 \section{Discussion and Conclusion}\label{Conclusion}
 
