@@ -106,46 +106,88 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   \label{dsl-architecture}
 \end{figure}
 
-Vanilla delimited-continuations can be defined as a function to register a callback function (\lstinline{type Cont[Domain, Value] = (Value => Domain) => Domain}), which is similar to the signature of \lstinline{interpret} function in \lstinline{Dsl} type class. The difference is that a \lstinline{Cont} itself contains the implementation of an operation while in our approach each operation is ad-hoc polymorphic to the \lstinline{Domain} by separating to the syntactic \lstinline{Keyword} and its implementation \lstinline{Dsl}, as shown in Figure~\ref{cont-architecture} and Figure~\ref{dsl-architecture}.
+Vanilla delimited-continuations can be defined as a function to register a callback function (Listing~\ref{Cont}), which is similar to the signature of \lstinline{interpret} function in \lstinline{Dsl} type class.
 
-By unifying \lstinline{Monad} and \lstinline{Cont}, \lstinline{Dsl} type class \lstinline{Dsl} type class 
+\begin{lstlisting}[caption={The definition of a delimited continuation},label={Cont}]
+type Cont[Domain, Value] = (Value => Domain) => Domain
+\end{lstlisting}
 
+The difference is that a \lstinline{Cont} itself contains the implementation of an operation while in our approach each operation is ad-hoc polymorphic to the \lstinline{Domain} by separating to the syntactic \lstinline{Keyword} and its implementation \lstinline{Dsl}, as shown in Figure~\ref{cont-architecture} and Figure~\ref{dsl-architecture}.
 
-In the rest sections of this paper, we will present the use cases of \lstinline{Dsl} type class, along with an implementation in Scala, \textit{Dsl.scala}, including:
+In the rest sections of this paper, we will present the design and use cases of \lstinline{Dsl} type class, including:
 
 \begin{enumerate}
-  \item Simulating \lstinline{Monad} to create imperative code blocks;
-  \item Multiple operations
+  \item Simulating some first-class features in Python, C\#, ECMAScript and C++, as library-defined keywords;
+  \label{simulating-first-class-features}
 
-  and Adapting Use \lstinline{Dsl} as a replacement of \lstinline{Monad} to create imperative block of monadic data types.
+  \item Simulating \lstinline{Monad} to create imperative code blocks;
+  \label{simulating-monad}
+
+  \item Composing delimited continuations with less closure creation than \lstinline{Cont} \lstinline{Monad} approach;
+  \label{composing-delimited-continuations}
+
+  \item Making \lstinline{Cont} stack safe, in a non-intrusive approach;
+  \label{stack-safe-cont}
+
+  \item Using any combination of the features (\ref{simulating-monad}), (\ref{composing-delimited-continuations}), (\ref{stack-safe-cont}), and (\ref{simulating-first-class-features}), in single code block.
 \end{enumerate}
 
-Along with the \lstinline{Dsl} type class, we also provide a Scala compiler plug-in to perform CPS-transformation for types that has corresponding \lstinline{Dsl} type class. Since the capacity of \lstinline{Dsl} type class is a superset of \lstinline{Monad}, the compiler plug-in allows Idris-like !-notation \cite{brady2013idris} direct style DSL for either monadic data type or other return types.
+All code examples except Section~\ref{other-language} are written in our Scala library \textit{Dsl.scala}, which provides an implementation of \lstinline{Dsl} type class, along with a Scala compiler plug-in to perform CPS-transformation for types that has corresponding \lstinline{Dsl} type class. The compiler plug-in avoids ``callback hell'' problem, allowing a more general version of Idris-like !-notation \cite{brady2013idris} direct style DSL, which can be used for not only monadic data type but also other operations.
+
+% TODO:
+
+% \textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are adaptive to the enclosing DSL, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flow. Unlike \lstinline{Eff}, an LDK is non-intrusive, can be added into an existing function as an optional first-class feature.
+
+% \textit{Dsl.scala} ships with some built-in LDKs, including:
+% \begin{itemize}
+%   \item The \lstinline{Shift} LDK for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
+%   \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
+%   \item The \lstinline{Each} LDK for traversing each element of a collection, similar to \lstinline{for}, \lstinline{yield} keywords for Scala collections.
+%   \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
+%   \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
+%   \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
+% \end{itemize}
+
+\section{Basic concepts}\label{Basic concepts}
+
+Our goal is making the control flow of a programming language be extensible. For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
+
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. In our \textit{Dsl.scala}-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
+
+\lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
+
+\begin{lstlisting}[caption={An Xorshift pseudo-random number generator in \textit{Dsl.scala}},label={xorShiftRandomGenerator}]
+import dsl.keywords.Yield
+def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
+  val tmp1 = seed ^ (seed << 13)
+  val tmp2 = tmp1 ^ (tmp1 >>> 17)
+  val tmp3 = tmp2 ^ (tmp2 << 5)
+  Yield(tmp3).cpsApply { _: Unit =>
+    xorShiftRandomGenerator(tmp3)
+  }
+}
+
+val generatedNumbers = xorShiftRandomGenerator(seed = 2463534242)
+
+println(generatedNumbers(0)) // The first generated random number
+println(generatedNumbers(1)) // The next generated random number
+\end{lstlisting}
+
+This use case demonstrates some basic concepts when using \lstinline{Dsl} type class.
+
+
+% This paper presents a novel approach to build embedded DSLs in control flow. The approach is based on three assumptions:
+
+% \begin{enumerate}
+%   \item The return type is the specific domain of a DSL.
+%   \item A DSL feature should be adaptive to various domains.
+%   \item Native control flow of the meta-language should be supported in a DSL.
+% \end{enumerate}
 
 
 
 
 
- \lstinline{arg}
-
-describes a lighter-weight approach to resolve the collaboration problem, and presents an implementation in Scala, the framework \textit{Dsl.scala}.
-
-
-
-
-TODO:
-
-\textit{Dsl.scala} allows library authors to create special keywords for language features that were usually implemented by the compiler. Those library-defined keywords (LDKs) are adaptive to the enclosing DSL, as a library user can create one function that contains interleaved LDKs from different vendors, along with ordinary Scala control flow. Unlike \lstinline{Eff}, an LDK is non-intrusive, can be added into an existing function as an optional first-class feature.
-
-\textit{Dsl.scala} ships with some built-in LDKs, including:
-\begin{itemize}
-  \item The \lstinline{Shift} LDK for asynchronous programming, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
-  \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
-  \item The \lstinline{Each} LDK for traversing each element of a collection, similar to \lstinline{for}, \lstinline{yield} keywords for Scala collections.
-  \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
-  \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
-  \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
-\end{itemize}
 
 \section{Using library-defined keywords}\label{Using library-defined keywords}
 
@@ -153,35 +195,35 @@ In this section, we will show some use cases from the perspective of the user of
 
 \subsection{Creating generators}\label{Creating generators}
 
-Suppose Alice is creating an Xorshift pseudo-random number generator \cite{marsaglia2003xorshift}, and she wants to store the generated numbers in a lazily evaluated infinite stream. 
+% Suppose Alice is creating an Xorshift pseudo-random number generator \cite{marsaglia2003xorshift}, and she wants to store the generated numbers in a lazily evaluated infinite stream. 
 
-The usage of Alice's pseudo-random number generator is shown as below:
+% The usage of Alice's pseudo-random number generator is shown as below:
 
-\begin{lstlisting}[caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
-val generatedNumbers = aliceRandomGenerator(seed = 2463534242)
-println(generatedNumbers(0))
-println(generatedNumbers(1))
-println(generatedNumbers(2))
-\end{lstlisting}
+% \begin{lstlisting}[caption={Using Alice's pseudo-random number generator},label={generatedNumbers}]
+% val generatedNumbers = aliceRandomGenerator(seed = 2463534242)
+% println(generatedNumbers(0))
+% println(generatedNumbers(1))
+% println(generatedNumbers(2))
+% \end{lstlisting}
 
-Alice is a functional programming language developer. She wants to avoid mutable variables in the implementation. Unfortunately, a pseudo-random number generator usually has an internal state that are changed during generate new random number.
+% Alice is a functional programming language developer. She wants to avoid mutable variables in the implementation. Unfortunately, a pseudo-random number generator usually has an internal state that are changed during generate new random number.
 
-With the help of the built-in LDK \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
+% With the help of the built-in LDK \lstinline{Yield} from \textit{Dsl.scala}, Alice can implement the generator as a recursive function that produce the next random number in each iteration.
 
-\begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
-import dsl.keywords.Yield
-def aliceRandomGenerator(seed: Int): Stream[Int] = {
-  val tmp1 = seed ^ (seed << 13)
-  val tmp2 = tmp1 ^ (tmp1 >>> 17)
-  val tmp3 = tmp2 ^ (tmp2 << 5)
-  !Yield(tmp3)
-  aliceRandomGenerator(tmp3)
-}
-\end{lstlisting}
+% \begin{lstlisting}[caption={The implementation of Alice's pseudo-random number generator},label={aliceRandomGenerator}]
+% import dsl.keywords.Yield
+% def aliceRandomGenerator(seed: Int): Stream[Int] = {
+%   val tmp1 = seed ^ (seed << 13)
+%   val tmp2 = tmp1 ^ (tmp1 >>> 17)
+%   val tmp3 = tmp2 ^ (tmp2 << 5)
+%   !Yield(tmp3)
+%   aliceRandomGenerator(tmp3)
+% }
+% \end{lstlisting}
 
-\lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the LDK \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
+% \lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the LDK \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
-\lstinline{Yield} is an LDK to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific LDK \lstinline{Yield} can be used. More generally, all LDKs are domain-specific, where the word ``domain'' stands for the return type of the enclosing function.
+% \lstinline{Yield} is an LDK to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific LDK \lstinline{Yield} can be used. More generally, all LDKs are domain-specific, where the word ``domain'' stands for the return type of the enclosing function.
 
 \subsection{Creating generators with an additional return value}
 
