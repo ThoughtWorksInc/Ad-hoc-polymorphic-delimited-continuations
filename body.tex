@@ -19,7 +19,7 @@ This paper proposed a new type class \lstinline{Dsl}, which can be consider as b
 
 \begin{lstlisting}[caption={The definition of \lstinline{Dsl} type class},label={Dsl}]
 trait Dsl[Keyword, Domain, Value] {
-  def interpret(keyword: Keyword, handler: Value => Domain): Domain
+  def apply(keyword: Keyword, handler: Value => Domain): Domain
 }
 \end{lstlisting}
 
@@ -74,7 +74,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   }
   \end{dot2tex}
 
-  \caption{The architecture of vanilla delimited-continuation approach}
+  \caption{The architecture of ordinary delimited continuation approach}
   \label{cont-architecture}
 \end{figure}
 
@@ -106,7 +106,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   \label{dsl-architecture}
 \end{figure}
 
-Vanilla delimited-continuations can be defined as a function to register a callback function (Listing~\ref{Cont}), which is similar to the signature of \lstinline{interpret} function in \lstinline{Dsl} type class.
+Ordinary delimited continuations can be defined as a function to register a callback function (Listing~\ref{Cont}), which is similar to the signature of \lstinline{Dsl} type class.
 
 \begin{lstlisting}[caption={The definition of a delimited continuation},label={Cont}]
 type Cont[Domain, Value] = (Value => Domain) => Domain
@@ -152,7 +152,26 @@ All code examples except Section~\ref{other-language} are written in our Scala l
 
 Our goal is making the control flow of a programming language be extensible. For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
 
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. In our \textit{Dsl.scala}-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers.
+
+\begin{lstlisting}[language=Python,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
+from typing import Iterator
+import numpy as np
+
+def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
+    tmp1 = np.uint32(seed ^ (seed << 13))
+    tmp2 = np.uint32(tmp1 ^ (tmp1 >> 17))
+    tmp3 = np.uint32(tmp2 ^ (tmp2 << 5))
+    yield tmp3
+    yield from xor_shift_random_generator(tmp3)
+
+generated_numbers = xor_shift_random_generator(seed = np.uint32(2463534242))
+
+print(generated_numbers.__next__()) // The first generated random number
+print(generated_numbers.__next__()) // The second generated random number
+\end{lstlisting}
+
+In our \textit{Dsl.scala}-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
 
 \lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
@@ -162,7 +181,7 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
   val tmp3 = tmp2 ^ (tmp2 << 5)
-  Yield(tmp3).cpsApply { _: Unit =>
+  Yield(tmp3) { _: Unit =>
     xorShiftRandomGenerator(tmp3)
   }
 }
@@ -170,19 +189,93 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
 val generatedNumbers = xorShiftRandomGenerator(seed = 2463534242)
 
 println(generatedNumbers(0)) // The first generated random number
-println(generatedNumbers(1)) // The next generated random number
+println(generatedNumbers(1)) // The second generated random number
 \end{lstlisting}
 
-This use case demonstrates some basic concepts when using \lstinline{Dsl} type class.
+Despite of the implementation of \lstinline{Yield}, which will be revealed in incoming sections, the above use case demonstrates some basic concepts when using \lstinline{Dsl} type class:
+
+\begin{enumerate}
+  \item \lstinline{xorShiftRandomGenerator}, and any functions that contains nested continuation-passing style (CPS) calls, are considered as written in some kind of embedded Domain-Specific Languages (eDSL).
+  \item The word ``domain'' in the term ``Domain-Specific Language'' stands for the return type of the enclosing function. For example, \lstinline{Stream[Int]} is the domain of \lstinline{xorShiftRandomGenerator}.
+  \item The domain-specific language used by the enclosing function consists of some domain-specific ``library-defined keywords'' (LDK). For example, \lstinline{Yield} is an LDK available for \lstinline{Stream} domains.
+  \item Along with LDK, DSLs written in \textit{Dsl.scala} also support native Scala control flows and expressions.
+\end{enumerate}
+
+\subsection{Implementing LDKs as ordinary delimited continuations}
+
+For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation \footnote{Listing~\ref{NonadaptiveYield} is present here for the purpose of introducing ordinary delimited continuation only. It's not the actual approach to implement \lstinline{Yield} in \textit{Dsl.scala}.}, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
+
+\begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as ordinary delimited continuations},label={NonadaptiveYield}]
+case class Yield[Element](element: Element) extends Cont[Stream[Element], Unit] {
+  def apply(handler: Unit => Stream[Element]): Stream[Element] = {
+    new Stream.Cons(element, handler(()))
+  }
+}
+\end{lstlisting}
+
+\subsection{CPS transformation}
+
+The syntax of Listing~\ref{xorShiftRandomGenerator} differs from first-class generators in Python, ECMAScript, and C\#, as the code block contains some manually created CPS closures. Ideally, the ``rest'' program after a \lstinline{Yield} operation should be indented at the same level of \lstinline{Yield}, not in a nested closure. This coding style can be achieved by the !-notation provided by \textit{Dsl.scala}'s built-in compiler plug-ins. The function \lstinline{xorShiftRandomGenerator} can be written as Listing~\ref{xorShiftRandomGenerator-bang} with the help of the !-notation plug-ins.
+
+\begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in the style of !-notation},label={xorShiftRandomGenerator-bang}]
+import dsl.keywords.Yield
+def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
+  val tmp1 = seed ^ (seed << 13)
+  val tmp2 = tmp1 ^ (tmp1 >>> 17)
+  val tmp3 = tmp2 ^ (tmp2 << 5)
+  !Yield(tmp3)
+  xorShiftRandomGenerator(tmp3)
+}
+\end{lstlisting}
+
+Our compiler plug-ins performs CPS-transform in a similar approach to \lstinline{reset}/\lstinline{shift} control operators in Scala Continuations \cite{rompf2009implementing}. The \lstinline{!} prefix corresponds to the \lstinline{shift} control operator, and the \lstinline{reset} control operator is added to every function or method body implicitly. Thus the above \lstinline{xorShiftRandomGenerator} is equivalent to Listing~\ref{xorShiftRandomGenerator-scala-continuations} in Scala Continuations.
+
+\begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in Scala Continuations},label={xorShiftRandomGenerator-scala-continuations}]
+import dsl.keywords.Yield
+def xorShiftRandomGenerator(seed: Int): Stream[Int] = reset {
+  val tmp1 = seed ^ (seed << 13)
+  val tmp2 = tmp1 ^ (tmp1 >>> 17)
+  val tmp3 = tmp2 ^ (tmp2 << 5)
+  shift(Yield(tmp3))
+  xorShiftRandomGenerator(tmp3)
+}
+\end{lstlisting}
+
+Because of the implicitly added \lstinline{reset} control operator, the boundary of a delimited continuation can never be escaped from a function in our approach. As a result, our plug-ins are able to eliminate the internal context of delimited continuations. \lstinline{ControlContext} or \lstinline{cps} type annotation in Scala Continuations are not necessary any more.
+
+\subsection{Ad-hoc polymorphic delimited continuation}
+
+In previous sections, we have demonstrated how to port the compiler-defined keyword \lstinline{yield} to Scala, as a library-defined keyword. However 
+
+Ordinary delimited continuation 
+
+% control flow can be totally eliminated at compile time
 
 
-% This paper presents a novel approach to build embedded DSLs in control flow. The approach is based on three assumptions:
+% a special instruction prefix is translated to a function call with 
+
+% , with some minor differences.
 
 % \begin{enumerate}
-%   \item The return type is the specific domain of a DSL.
-%   \item A DSL feature should be adaptive to various domains.
-%   \item Native control flow of the meta-language should be supported in a DSL.
+  
+%   \item Compiler-time instruction \lstinline{reset} is not necessary in our implementation, as the boundary of a delimited continuation is by default the enclosing function. Instead, \lstinline{reset} can be implemented as an ordinary Scala function shown in Listing \ref{bobLoggingParserReset}.
+  
+%   \item All return types are kept as is in our implementation, instead of hijacking on the \lstinline{@cps} type.
+%   \label{as-is}
+
+%   \item Our implementation only performs CPS-transform explicitly on the !-notation, instead of implicit conversion between \lstinline{@cps} type and ordinary type.
+
 % \end{enumerate}
+
+% Because of (\ref{as-is}), CPS-translated function produced by our compiler plug-in always has the same answer type as the return type, which is called the ``domain'' of a DSL. Even then, our approach still allows explicit answer type by using the underscore trick shown in Listing \ref{bobLoggingParserUnderscore}.
+
+
+
+
+
+
+
+
 
 
 
@@ -192,6 +285,7 @@ This use case demonstrates some basic concepts when using \lstinline{Dsl} type c
 \section{Using library-defined keywords}\label{Using library-defined keywords}
 
 In this section, we will show some use cases from the perspective of the user of LDKs.
+
 
 \subsection{Creating generators}\label{Creating generators}
 
@@ -580,29 +674,29 @@ LDKs introduced in Section \ref{Using library-defined keywords} are optional lib
 
 A Nonadaptive LDK is simply a delimited continuation, along with a syntactic \lstinline{unary_!} method for !-notation. For example, the \lstinline{Yield} LDK described at Section \ref{Creating generators} can be implemented as shown in Listing \ref{NonadaptiveYield}.
 
-\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
-import dsl.Dsl.shift
-case class Yield[Element](element: Element) {
+% \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the nonadaptive version},label={NonadaptiveYield}]
+% import dsl.Dsl.shift
+% case class Yield[Element](element: Element) {
 
-  @shift
-  @compileTimeOnly("Calls to this method will be translated to cpsApply calls by the compiler plug-in")
-  def unary_! : Value = ???
+%   @shift
+%   @compileTimeOnly("Calls to this method will be translated to apply calls by the compiler plug-in")
+%   def unary_! : Value = ???
 
-  @inline
-  def cpsApply(handler: Unit => Stream[Element]): Stream[Element] = {
-    new Stream.Cons(element, handler(()))
-  }
-}
-\end{lstlisting}
+%   @inline
+%   def apply(handler: Unit => Stream[Element]): Stream[Element] = {
+%     new Stream.Cons(element, handler(()))
+%   }
+% }
+% \end{lstlisting}
 
-Calls to \lstinline{unary_!} method will be translated to \lstinline{cpsApply} calls by our compiler plug-in. For example, \lstinline{aliceRandomGenerator} in Listing \ref{aliceRandomGenerator} will be translated to the code shown in Listing \ref{translatedAliceRandomGenerator} by our compiler plug-in:
+Calls to \lstinline{unary_!} method will be translated to \lstinline{apply} calls by our compiler plug-in. For example, \lstinline{aliceRandomGenerator} in Listing \ref{aliceRandomGenerator} will be translated to the code shown in Listing \ref{translatedAliceRandomGenerator} by our compiler plug-in:
 
 \begin{lstlisting}[caption={The translated code for Alice's pseudo-random number generator},label={translatedAliceRandomGenerator}]
 def aliceRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
   val tmp3 = tmp2 ^ (tmp2 << 5)
-  Yield(tmp3).cpsApply { _: Unit =>
+  Yield(tmp3) { _: Unit =>
     aliceRandomGenerator(tmp3)
   }
 }
@@ -613,14 +707,14 @@ And Listing \ref{bobLoggingParser} or Listing \ref{bobLoggingParserUnderscore} w
 \begin{lstlisting}[caption={The translated code for Bob's parser},label={translatedBobLoggingParser}]
 import dsl.Dsl.!!
 def bobLoggingParser(jsonContent: String, defaultValue: JSONType): Stream[String] !! JSONType = { (callback: JSONType => Stream[String]) =>
-  Yield(s"I am going to parse the JSON text $jsonContent...").cpsApply { _: Unit =>
+  Yield(s"I am going to parse the JSON text $jsonContent...") { _: Unit =>
     JSON.parseRaw(jsonContent) match {
       case Some(json) =>
-        Yield(s"Succeeded to parse $jsonContent").cpsApply { _: Unit =>
+        Yield(s"Succeeded to parse $jsonContent") { _: Unit =>
           callback(json)
         }
       case None =>
-        Yield(s"Failed to parse $jsonContent").cpsApply { _: Unit =>
+        Yield(s"Failed to parse $jsonContent") { _: Unit =>
           callback(defaultValue)
         }
     }
@@ -647,23 +741,23 @@ Because of (\ref{as-is}), CPS-translated function produced by our compiler plug-
 
 All \textit{Dsl.scala} built-in LDKs are adaptive, which can collaborate with other LDKs. For example, \lstinline{Yield} is adaptive, since it works not only in functions that return \lstinline{Stream[_]}, but also \lstinline{(Stream[_] !! _)}, \lstinline{(Stream[_] !! _ !! _)}, etc.
 
-Those LDKs are adaptive because they all extends the \lstinline{trait Keyword}, which has a ad-hoc polymorphic \lstinline{cpsApply} method (Listing \ref{Keyword}).
+Those LDKs are adaptive because they all extends the \lstinline{trait Keyword}, which has a ad-hoc polymorphic \lstinline{apply} method (Listing \ref{Keyword}).
 
 \begin{lstlisting}[caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
 trait Keyword[Self, Value] extends Any { this: Self =>
 
   @shift
-  @compileTimeOnly("Calls to this method will be translated to cpsApply calls by the compiler plug-in")
+  @compileTimeOnly("Calls to this method will be translated to apply calls by the compiler plug-in")
   def unary_! : Value = ???
 
-  def cpsApply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
-    dsl.interpret(this, handler)
+  def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+    dsl.apply(this, handler)
   }
 
 }
 \end{lstlisting}
 
-The functionality of \lstinline{cpsApply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
+The functionality of \lstinline{apply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
 
 The adaptive version of \lstinline{Yield} LDK ships with a type class instance of \lstinline{Dsl[Yield[Element], Stream[Element], Unit]}, allowing the \lstinline{!Yield} notation in functions that return \lstinline{Stream[Element]}
 
@@ -673,7 +767,7 @@ case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit
 object Yield {
   implicit def yieldDsl[Element]: Dsl[Yield[Element], Stream[Element], Unit] =
     new Dsl[Yield[Element], Stream[Element], Unit] {
-      def interpret(keyword: Yield[Element], mapper: Unit => Stream[Element]): Stream[Element] = {
+      def apply(keyword: Yield[Element], mapper: Unit => Stream[Element]): Stream[Element] = {
         new Stream.Cons(keyword.element, mapper(()))
       }
     }
@@ -689,9 +783,9 @@ implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
   implicit restDsl: Dsl[Keyword, Domain, KeywordValue]
 ): Dsl[Keyword, Domain !! Value, KeywordValue] = {
   new Dsl[Keyword, Domain !! Value, KeywordValue] {
-    def interpret(keyword: Keyword, handler: KeywordValue => Domain !! Value): Domain !! Value = {
+    def apply(keyword: Keyword, handler: KeywordValue => Domain !! Value): Domain !! Value = {
       (continue: Value => Domain) =>
-        restDsl.interpret(keyword, { a =>
+        restDsl.apply(keyword, { a =>
           handler(a)(continue)
         })
     }
@@ -705,7 +799,7 @@ Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !
 
 We created some benchmarks to evaluate the computational performance of code generated by our compiler plug-in for LDKs, especially, we are interesting how LDKs and other direct style DSL affect the performance in an effect system that support both asynchronous and synchronous effects.
 
-In spite of LDKs of adapters to monads or other effect systems (see Section \ref{Monadic programming}), the preferred effect system for LDKs is \lstinline{Task}, the type alias of vanilla continuation-passing style function (Listing \ref{Task}):
+In spite of LDKs of adapters to monads or other effect systems (see Section \ref{Monadic programming}), the preferred effect system for LDKs is \lstinline{Task}, the type alias of ordinary continuation-passing style function (Listing \ref{Task}):
 
 \begin{lstlisting}[float=htbp,caption={The definition of \lstinline{Task}, the preferred effect system using with LDKs},label={Task}]
 type !![Domain, Value] = (Value => Domain) => Domain
@@ -719,7 +813,7 @@ Our benchmarks measured the performance of LDKs in the \lstinline{Task} domain, 
   \begin{tabular}{l|l}
     Effect System & direct style DSL \\
     \hline
-    vanilla continuation-passing style functions & LDKs provided by \textit{Dsl.scala} \\
+    ordinary continuation-passing style functions & LDKs provided by \textit{Dsl.scala} \\
     Scala Future \cite{haller2012sip} & Scala Async \cite{haller2013sip} \\
     Scala Continuation library \cite{rompf2009implementing} & Scala Continuation compiler plug-in \\
     Monix tasks \cite{nedelcu2017monix} & \texttt{for} comprehension \\
@@ -746,15 +840,15 @@ In order to measure the performance impact due to direct style DSLs, we have to 
 
 Note that the tasks in the list is executed in the current thread or in a thread pool. We keep each task returning a simple pure value, because we want to measure the overhead of effect systems, not the task itself.
 
-The ``bind'' operation means the primitive operation of each effect system. For Monix tasks, Cats effects, Scalaz Concurrent and Scala Continuations library, the ``bind'' operation is \lstinline{flatMap}; for \textit{Dsl.scala}, the ``bind'' operation is \lstinline{cpsApply}, which may or may not be equivalent to \lstinline{flatMap} according to the type of the current domain.
+The ``bind'' operation means the primitive operation of each effect system. For Monix tasks, Cats effects, Scalaz Concurrent and Scala Continuations library, the ``bind'' operation is \lstinline{flatMap}; for \textit{Dsl.scala}, the ``bind'' operation is \lstinline{apply}, which may or may not be equivalent to \lstinline{flatMap} according to the type of the current domain.
 
-We use the !-notation to perform the \lstinline{cpsApply} in \textit{Dsl.scala}. The !-notation results the exact same Java bytecode to manually passing a callback function to \lstinline{cpsApply} (Listing \ref{RawSum.dsl}).
+We use the !-notation to perform the \lstinline{apply} in \textit{Dsl.scala}. The !-notation results the exact same Java bytecode to manually passing a callback function to \lstinline{apply} (Listing \ref{RawSum.dsl}).
 
-\begin{lstlisting}[float=htbp,caption={The most efficient implementation of sum based on vanilla CPS function},label={RawSum.dsl}]
+\begin{lstlisting}[float=htbp,caption={The most efficient implementation of sum based on ordinary CPS function},label={RawSum.dsl}]
 def loop(tasks: List[Task[Int]], accumulator: Int = 0)(callback: Int => TaskDomain): TaskDomain = {
   tasks match {
     case head :: tail =>
-      // Expand to: implicitShift(head).cpsApply(i => loop(tail, i + accumulator)(callback))
+      // Expand to: implicitShift(head).apply(i => loop(tail, i + accumulator)(callback))
       loop(tail, !head + accumulator)(callback)
     case Nil =>
       callback(accumulator)
@@ -804,7 +898,7 @@ The \lstinline{Task} alias of continuation-passing style function used with \tex
 
 \subsubsection{The performance impact of direct style DSLs}
 
-In this section, we will present the performance impact when different syntax notations are introduced. For vanilla CPS functions, we added one more !-notation to avoid manually passing the \lstinline{callback} in the previous benchmark (Listing \ref{LeftAssociatedSum.dsl}, \ref{RightAssociatedSum.dsl}). For other effect systems, we refactored the previous sum benchmarks to use Scala Async, Scala Continuation's \lstinline{@cps} annotations, and \lstinline{for} comprehension, respectively (Listing \ref{LeftAssociatedSum.future}, \ref{RightAssociatedSum.future}, \ref{LeftAssociatedSum.scalaContinuation}, \ref{RightAssociatedSum.scalaContinuation}, \ref{LeftAssociatedSum.scalaz}, \ref{RightAssociatedSum.scalaz}).
+In this section, we will present the performance impact when different syntax notations are introduced. For ordinary CPS functions, we added one more !-notation to avoid manually passing the \lstinline{callback} in the previous benchmark (Listing \ref{LeftAssociatedSum.dsl}, \ref{RightAssociatedSum.dsl}). For other effect systems, we refactored the previous sum benchmarks to use Scala Async, Scala Continuation's \lstinline{@cps} annotations, and \lstinline{for} comprehension, respectively (Listing \ref{LeftAssociatedSum.future}, \ref{RightAssociatedSum.future}, \ref{LeftAssociatedSum.scalaContinuation}, \ref{RightAssociatedSum.scalaContinuation}, \ref{LeftAssociatedSum.scalaz}, \ref{RightAssociatedSum.scalaz}).
 
 \begin{lstlisting}[float=htbp,caption={Left-associated sum based on LDKs of \textit{Dsl.scala}},label={LeftAssociatedSum.dsl}]
 def loop(tasks: List[Task[Int]]): Task[Int] = _ {
@@ -979,7 +1073,7 @@ Scala Async or \lstinline{for} comprehension is used in element-wise task \lstin
 
 The benchmark for \textit{Dsl.scala} is entirely written in LDKs (Listing \ref{RawCartesianPruduct.dsl}):
 
-\begin{lstlisting}[float=htbp,caption={Cartesian product for vanilla CPS functions, based on \textit{Dsl.scala}},label={RawCartesianPruduct.dsl}]
+\begin{lstlisting}[float=htbp,caption={Cartesian product for ordinary CPS functions, based on \textit{Dsl.scala}},label={RawCartesianPruduct.dsl}]
 def cellTask(taskX: Task[Int], taskY: Task[Int]): Task[List[Int]] = _ {
   List(!taskX, !taskY)
 }
@@ -1014,7 +1108,7 @@ The benchmark result is shown in Table \ref{RawCartesianProduct}.
   \label{RawCartesianProduct}
 \end{table}
 
-Monix tasks, Cats Effects and vanilla CPS functions created from \textit{Dsl.scala} are still the top 3 scored effect systems.
+Monix tasks, Cats Effects and ordinary CPS functions created from \textit{Dsl.scala} are still the top 3 scored effect systems.
 
 \subsubsection{The performance of collection manipulation in direct style DSLs}
 
@@ -1040,7 +1134,7 @@ With the help of \lstinline{ListT} monad transformer, we are able to merge \lsti
 
 We also merged \lstinline{cellTask} and \lstinline{listTask} in the \textit{Dsl.scala} version of benchmark (Listing \ref{CartesianProduct.dsl}).
 
-\begin{lstlisting}[float=htbp,caption={Cartesian product for vanilla CPS functions, in one function},label={CartesianProduct.dsl}]
+\begin{lstlisting}[float=htbp,caption={Cartesian product for ordinary CPS functions, in one function},label={CartesianProduct.dsl}]
 def listTask: Task[List[Int]] = reset {
   List(!(!Each(inputDslTasks)), !(!Each(inputDslTasks)))
 }
@@ -1082,12 +1176,12 @@ This paper presents a novel approach to build embedded DSLs in control flow. The
 
 By combining of the three assumptions, we defined the concept LDK (Library-Defined Keyword). An LDK is merely an ad-hoc polymorphic delimited continuation, interpreted by a domain-specific type class, as described in Section \ref{Creating library-defined keywords}.
 
-But what interesting is that an LDK can be considered as a more general version of monadic bind operation as well. The interpreter of an LDK is a triple parametric \lstinline{Dsl} type class (Listing \ref{Dsl}), which contains only one \lstinline{interpret} function, whose type signature is \lstinline{(K, (A => D)) => D}, which is exactly as same as monadic bind operation when \lstinline{K} is \lstinline{F[A]} and \lstinline{D} is \lstinline{F[B]}. Thus, the interpreter for \lstinline{Monadic} LDK (See section \ref{Monadic programming}) can be implemented as a trivial forwarder to the bind operation, as shown in Listing \ref{monadDsl}. In contrast, the reverse adapter is quite difficult, if not impossible, to be implemented.
+But what interesting is that an LDK can be considered as a more general version of monadic bind operation as well. The interpreter of an LDK is a triple parametric \lstinline{Dsl} type class (Listing \ref{Dsl}), which contains only one \lstinline{apply} function, whose type signature is \lstinline{(K, (A => D)) => D}, which is exactly as same as monadic bind operation when \lstinline{K} is \lstinline{F[A]} and \lstinline{D} is \lstinline{F[B]}. Thus, the interpreter for \lstinline{Monadic} LDK (See section \ref{Monadic programming}) can be implemented as a trivial forwarder to the bind operation, as shown in Listing \ref{monadDsl}. In contrast, the reverse adapter is quite difficult, if not impossible, to be implemented.
 
 \begin{lstlisting}[float=htbp,caption={The implementation of interpreter for \lstinline{Monadic} LDK},label={monadDsl}]
 implicit def monadDsl[F[_], A, B](implicit monad: Monad[F]): Dsl[Monadic[F, A], F[B], A] =
   new Dsl[Monadic[F, A], F[B], A] {
-    def interpret(keyword: Monadic[F, A], handler: A => F[B]): F[B] = {
+    def apply(keyword: Monadic[F, A], handler: A => F[B]): F[B] = {
       monad.bind(keyword.fa)(handler)
     }
   }
