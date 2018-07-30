@@ -152,18 +152,15 @@ All code examples except Section~\ref{other-language} are written in our Scala l
 
 Our goal is making the control flow of a programming language be extensible. For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
 
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers.
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that numpy \footnote{http://www.numpy.org/} is used for 32 bit integers, and type hinting is used for clarity.
 
 \begin{lstlisting}[language=Python,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
-from typing import Iterator
-import numpy as np
-
 def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
-    tmp1 = np.uint32(seed ^ (seed << 13))
-    tmp2 = np.uint32(tmp1 ^ (tmp1 >> 17))
-    tmp3 = np.uint32(tmp2 ^ (tmp2 << 5))
-    yield tmp3
-    yield from xor_shift_random_generator(tmp3)
+  tmp1 = np.uint32(seed ^ (seed << 13))
+  tmp2 = np.uint32(tmp1 ^ (tmp1 >> 17))
+  tmp3 = np.uint32(tmp2 ^ (tmp2 << 5))
+  yield tmp3
+  yield from xor_shift_random_generator(tmp3)
 
 generated_numbers = xor_shift_random_generator(seed = np.uint32(2463534242))
 
@@ -176,7 +173,6 @@ In our \textit{Dsl.scala}-based generator, the return type is replaced to \lstin
 \lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
 \begin{lstlisting}[caption={An Xorshift pseudo-random number generator in \textit{Dsl.scala}},label={xorShiftRandomGenerator}]
-import dsl.keywords.Yield
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -218,7 +214,6 @@ case class Yield[Element](element: Element) extends Cont[Stream[Element], Unit] 
 The syntax of Listing~\ref{xorShiftRandomGenerator} differs from first-class generators in Python, ECMAScript, and C\#, as the code block contains some manually created CPS closures. Ideally, the ``rest'' program after a \lstinline{Yield} operation should be indented at the same level of \lstinline{Yield}, not in a nested closure. This coding style can be achieved by the !-notation provided by \textit{Dsl.scala}'s built-in compiler plug-ins. The function \lstinline{xorShiftRandomGenerator} can be written as Listing~\ref{xorShiftRandomGenerator-bang} with the help of the !-notation plug-ins.
 
 \begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in the style of !-notation},label={xorShiftRandomGenerator-bang}]
-import dsl.keywords.Yield
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -231,7 +226,6 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
 Our compiler plug-ins performs CPS-transform in a similar approach to \lstinline{reset}/\lstinline{shift} control operators in Scala Continuations \cite{rompf2009implementing}. The \lstinline{!} prefix corresponds to the \lstinline{shift} control operator, and the \lstinline{reset} control operator is added to every function or method body implicitly. Thus the above \lstinline{xorShiftRandomGenerator} is equivalent to Listing~\ref{xorShiftRandomGenerator-scala-continuations} in Scala Continuations.
 
 \begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in Scala Continuations},label={xorShiftRandomGenerator-scala-continuations}]
-import dsl.keywords.Yield
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = reset {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -243,11 +237,104 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = reset {
 
 Because of the implicitly added \lstinline{reset} control operator, the boundary of a delimited continuation can never be escaped from a function in our approach. As a result, our plug-ins are able to eliminate the internal context of delimited continuations. \lstinline{ControlContext} or \lstinline{cps} type annotation in Scala Continuations are not necessary any more.
 
-\subsection{Ad-hoc polymorphic delimited continuation}
+There is another difference between our compiler plug-ins and Scala Continuation. Our compiler plug-ins are name-based instead of type-based, allowing CPS-transformation in monadic blocks, which will be discussed in next section.
 
-In previous sections, we have demonstrated how to port the compiler-defined keyword \lstinline{yield} to Scala, as a library-defined keyword. However 
+\subsection{Monadic blocks}
 
-Ordinary delimited continuation 
+In previous sections, we have demonstrated how to port the compiler-defined keyword \lstinline{yield} to Scala, as a library-defined keyword. In this section, we will demonstrate how to import another compiler-defined keyword, \lstinline{await}, to Scala, as a library-defined keyword.
+
+\lstinline{await} is available in Python, ECMAScript, or C\#, to compose multiple asynchronous tasks into one task. For example, the compiler-defined keyword \lstinline{await} in Python is available in functions marked as \lstinline{async} that returns an \lstinline{Awaitable}. Each \lstinline{await} pauses the execution until the asynchronous operation is complete. An example of creating an \lstinline{Awaitable} to download two web pages by aiohttp \footnote{https://docs.aiohttp.org/} is shown in Listing~\ref{download_two_pages-Python}.
+
+\begin{lstlisting}[language=Python,caption={Asynchronously downloading two web pages in Python},label={download_two_pages-Python}]
+async def download_two_pages() -> Awaitable[Tuple[bytes, bytes]]:
+  session = aiohttp.ClientSession()
+  response1 = await session.get('http://example.com')
+  content1 = await response1.read()
+  response2 = await session.get('http://example.net')
+  content2 = await response2.read()
+  return (content1, content2)
+\end{lstlisting}
+
+When porting \lstinline{await} feature to Scala, we replace the compiler-defined keyword \lstinline{await} to a library-defined keyword \lstinline{Await}, and \lstinline{Awaitable} to \lstinline{Future} \footnote{https://docs.scala-lang.org/overviews/core/futures.html} as shown in Listing~\ref{downloadTowPages}, where \lstinline{ByteString}, \lstinline{Http}, \lstinline{Http}, \lstinline{HttpMethods}, \lstinline{HttpRequest} in the example are asynchronous HTTP library provided by Akka \footnote{https://akka.io/} and Akka HTTP \footnote{https://akka.io/akka-http/}.
+
+\begin{lstlisting}[caption={Asynchronously downloading two web pages in \textit{Dsl.scala} },label={downloadTowPages}]
+def downloadTwoPages(): Future[(ByteString, ByteString)] = {
+  Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) { response1 =>
+    Await(response1.entity.toStrict(timeout = 5.seconds)) { content1 =>
+      Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net"))) { response2 =>
+        Await(response2.entity.toStrict(timeout = 5.seconds)) { content2 =>
+          Future((content1.data, content2.data))
+        }
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\lstinline{Await} should accept a \lstinline{handler} to handle the incoming value in an asynchronous \lstinline{Future}, and it can be implemented as a forwarder of \lstinline{flatMap} on \lstinline{Future}, as shown in Listing~\ref{NonadaptiveAwait}.
+
+\begin{lstlisting}[caption={Implementing \lstinline{Await} LDK as a forwarder to \lstinline{flatMap}},label={NonadaptiveAwait}]
+case class Await[A](future: Future[A]) {
+  def apply[B](handler: A => Future[B])(implicit ec: ExecutionContext): Future[B] = {
+      future.flatMap(handler)
+  }
+}
+\end{lstlisting}
+
+Similar to CPS-transformation in Listing~\ref{xorShiftRandomGenerator-bang}, the nested callback functions registered to \lstinline{Await} in the \lstinline{downloadTowPages} method can be replaced to !-notation with the help of our compiler plug-ins. The transformed version of \lstinline{downloadTowPages} is shown in Listing~\ref{downloadTowPages-bang}.
+
+\begin{lstlisting}[caption={Asynchronously downloading two web pages, in the style of !-notation},label={downloadTowPages-bang}]
+def downloadTwoPages(): Future[(ByteString, ByteString)] = {
+  val response1 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) 
+  val content1 = !Await(response1.entity.toStrict(timeout = 5.seconds))
+  val response2 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net")))
+  val content2 = !Await(response2.entity.toStrict(timeout = 5.seconds))
+  Future((content1.data, content2.data))
+}
+\end{lstlisting}
+
+Alternately, the last \lstinline{Future} call can be moved to the front of the function body as shown in Listing~\ref{downloadTowPages-bang-block}. It is possible because the block statement in Scala is also an expression that has a value. \lstinline|{e1; e2; f(a)}| and \lstinline|f{e1; e2; a}| are always equivalent as long as \lstinline{f} is a call-by-value function.
+
+\begin{lstlisting}[caption={Asynchronously downloading two web pages, within a \lstinline{Future} block},label={downloadTowPages-bang-block}]
+def downloadTwoPages() = Future {
+  val response1 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) 
+  val content1 = !Await(response1.entity.toStrict(timeout = 5.seconds))
+  val response2 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net")))
+  val content2 = !Await(response2.entity.toStrict(timeout = 5.seconds))
+  (content1.data, content2.data)
+}
+\end{lstlisting}
+
+Note that both Listing~\ref{downloadTowPages-bang} and Listing~\ref{downloadTowPages-bang-block} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only \lstinline{Cont}, while the signature of \lstinline{flatMap} differs from \lstinline{Cont}, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
+
+Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of \lstinline{apply} is.
+
+\begin{lstlisting}[mathescape=true, caption={A function with !-notation}, label={bang-block}]
+def f = {
+  val $v_0$ = !$e_0$;
+  val $v_1$ = !$e_1$;
+  $\hdots$
+  val $v_n$ = !$e_n$;
+  $r$;
+}
+\end{lstlisting}
+
+\begin{lstlisting}[mathescape=true,caption={The code converted from !-notation by our name-based CPS-transformation plug-ins}, label={cps-block}]
+def f = {
+  $e_0$ { $v_0$ =>
+    $e_1$ { $v_1$ =>
+      $\hdots$
+      $e_n$ { $v_n$ =>
+        $r$
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+The behavior of our CPS-transformation compiler plug-ins is similar to do-notation with \lstinline{RebindableSyntax} in Haskell. Both delimited continuation and monad-like \lstinline{flatMap} operations are supported.
+
+\subsection{Ad-hoc polymorphic delimited continuations}
 
 % control flow can be totally eliminated at compile time
 
