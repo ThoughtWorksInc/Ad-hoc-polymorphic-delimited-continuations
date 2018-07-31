@@ -307,7 +307,7 @@ def downloadTwoPages() = Future {
 
 Note that both Listing~\ref{downloadTowPages-bang} and Listing~\ref{downloadTowPages-bang-block} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only \lstinline{Cont}, while the signature of \lstinline{flatMap} differs from \lstinline{Cont}, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
 
-Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of \lstinline{apply} is.
+Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of \lstinline{apply} is. Both delimited continuation \lstinline{Cont} and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to do-notation with \lstinline{RebindableSyntax} in Haskell.
 
 \begin{lstlisting}[mathescape=true, caption={A function with !-notation}, label={bang-block}]
 def f = {
@@ -332,14 +332,125 @@ def f = {
 }
 \end{lstlisting}
 
-The behavior of our CPS-transformation compiler plug-ins is similar to do-notation with \lstinline{RebindableSyntax} in Haskell. Both delimited continuation and monad-like \lstinline{flatMap} operations are supported.
+While \lstinline{Await} implemented in Listing~\ref{NonadaptiveAwait} can ``extract'' the value of a \lstinline{Future}, it can be generalize to any \lstinline{Monad}s as shown in Listing~\ref{NonadaptiveMonadic}.
 
-\subsection{Ad-hoc polymorphic delimited continuations}
+\begin{lstlisting}[caption={Implementing \lstinline{Monadic} LDK as a forwarder to \lstinline{Monad}},label={NonadaptiveMonadic}]
+trait Monad[F[_]] {
+  def bind[A, B](fa: F[A])(f: A => F[B])
+  def point[A](a: A): F[A]
+}
+object Monad {
+  implicit def futureMonad(implicit ec: ExecutionContext) = new Monad[Future] {
+    def bind[A, B](fa: Future[A])(f: A => Future[B]) = fa.flatMap(f)
+    def point[A](a: A): Future[A] = Future(a)
+  }
+}
 
-% control flow can be totally eliminated at compile time
+case class Monadic[F[_], A](fa: F[A]) {
+  def apply[B](handler: A => F[B])(implicit monad: Monad[F]): F[B] = {
+    monad.bind(fa)(handler)
+  }
+}
+\end{lstlisting}
 
+\lstinline{Monadic} is an more generic LDK than \lstinline{Await}, able to ``extract'' any monadic value, not only future, as long as the corresponding \lstinline{Monad} type class instance exists.
 
-% a special instruction prefix is translated to a function call with 
+\subsection{Collaborative library-defined keywords}
+
+By now, we ported Python's compiler-defined keywords \lstinline{yield} and \lstinline{await} to Scala, as library-defined keywords. However, those keywords are not collaborative. LDK \lstinline{Yield} and \lstinline{Await} implemented in previous sections cannot be present in one function, while Python 3.5 allows using \lstinline{yield} and \lstinline{await} together to create asynchronous generators.
+
+In this section, we will present a use case of Python's \lstinline{yield} and \lstinline{await} in one function, and then modify the previous implementation of LDK \lstinline{Yield} and \lstinline{Await} to gain the ability of collaboration.
+
+\begin{lstlisting}[language=Python,caption={Downloading two web pages as an asynchronous generator in Python},label={download_two_pages_generator-Python}]
+async def download_two_pages_generator() -> AsyncGenerator[bytes, None]:
+    session = aiohttp.ClientSession()
+    response1 = await session.get('http://example.com')
+    content1 = await response1.read()
+    yield content1
+    response2 = await session.get('http://example.net')
+    content2 = await response2.read()
+    yield content2
+\end{lstlisting}
+
+Listing~\ref{download_two_pages_generator-Python} shows an example of downloading two web pages by mix of \lstinline{yield} and \lstinline[language=Python]{await}. In Python, when a an \lstinline{async} function like \lstinline{download_two_pages_generator} contains both \lstinline{yield} and \lstinline{await} keywords, the return type becomes \lstinline{AsyncGenerator}.
+
+The corresponding type of \lstinline{AsyncGenerator[bytes, None]} in Scala could be \lstinline{Stream[Future[ByteString]]}, which should be the return type of \lstinline{apply} in the modified version of \lstinline{Yield} and \lstinline{Await}. Therefore, the modified version of \lstinline{Yield} and \lstinline{Await} can be implemented as Listing~\ref{Yield-StreamFuture} and Listing~\ref{Await-StreamFuture} , and the usage of asynchronous generator with !-notation is shown in Listing~\ref{downloadTwoPages-StreamFuture}.
+
+\begin{lstlisting}[caption={Implementing modified version of \lstinline{Yield} LDK for creating asynchronous generators},label={Yield-StreamFuture}]
+case class Yield[Element](element: Element) {
+  def apply(handler: Unit => Stream[Future[Element]])(implicit ec: ExecutionContext): Stream[Future[Element]] = {
+    new Stream.Cons(Future(element), handler(()))
+  }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Implementing modified version of \lstinline{Await} LDK for creating asynchronous generators},label={Await-StreamFuture}]
+case class Await[A](future: Future[A]) {
+  def apply[B](handler: A => Stream[Future[B]])(implicit ec: ExecutionContext): Stream[Future[B]] = {
+    val ff = future.map(handler)
+    new Stream.Cons(ff.flatMap(_.head), result(ff, Duration.Inf).tail)
+  }
+}
+\end{lstlisting}
+  
+
+\begin{lstlisting}[caption={Downloading two web pages as an asynchronous generator, in the style of !-notation},label={downloadTwoPages-StreamFuture}]
+def downloadTwoPagesGenerator(): Stream[Future[ByteString]] = {
+  // The following Await and Yield LDKs will create a Future to download the page at example.com, as the first element of the output Stream
+  val response1 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com")))
+  val content1 = !Await(response1.entity.toStrict(timeout = 5.seconds))
+  !Yield(content1.data)
+
+  // The following Await and Yield LDKs will create a Future to download the page at example.net, as the second element of the output Stream
+  val response2 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net")))
+  val content2 = !Await(response2.entity.toStrict(timeout = 5.seconds))
+  !Yield(content2.data)
+
+  // Remaining elements after yielded futures
+  Stream.empty[Future[ByteString]]
+}
+\end{lstlisting}
+
+Semantically, each \lstinline{Yield} LDK ``prepend'' a value at the head of the output \lstinline{Stream}, and the remaining parts of the output \lstinline{Stream} is a \lstinline{Stream.empty}. Any asynchronous \lstinline{Await} operations performed before a \lstinline{Yield} are collected as the asynchronous \lstinline{Future} for the yielded element.
+
+The modified version of \lstinline{Yield} and \lstinline{Await} LDKs are collaborative, as they are both available for the domain of \lstinline{Stream[Future[ByteString]]}, thus they can be used together in one function.
+
+\subsection{Adaptive library-defined keywords}
+
+In previous sections, we had presented two different implementation of \lstinline{Yield} in Listing~\ref{NonadaptiveYield} and Listing~\ref{Yield-StreamFuture} for creating generators and asynchronous generators, respectively, and two different implementation of \lstinline{Await} in Listing~\ref{NonadaptiveAwait} and Listing~\ref{Await-StreamFuture} for creating asynchronous value and asynchronous generators, respectively. However, compiler-defined keywords \lstinline{await} and \lstinline{yield} in Python are adaptive to their context, available in either cases. In this section, we will introduce the type class \lstinline{Dsl} for creating adaptive library-defined keywords as well.
+
+Listing~\ref{Dsl}
+
+\section{The implementation of Dsl.scala}
+
+\subsection{The implementation of CPS transformation compiler plug-ins}
+
+\subsection{Built-in LDKs}
+
+\section{Benchmark}
+
+\section{Related works}
+
+\subsection{Haskell's do-notation}
+
+\subsection{Idris's !-notation}
+
+\subsection{Scala's for-comprehension}
+
+\subsection{Scala async}
+
+\subsection{Scala continuations}
+
+\subsection{Monad transformers}
+
+\subsection{Effect handlers}
+
+\section{Future work}
+
+\subsection{Haskell implementation}
+
+\section{Conclusion}
+
 
 % , with some minor differences.
 
