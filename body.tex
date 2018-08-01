@@ -199,7 +199,7 @@ Despite of the implementation of \lstinline{Yield}, which will be revealed in in
 
 \subsection{Implementing LDKs as ordinary delimited continuations}
 
-For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation \footnote{Listing~\ref{NonadaptiveYield} is present here for the purpose of introducing ordinary delimited continuation only. It's not the actual approach to implement \lstinline{Yield} in \textit{Dsl.scala}.}, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
+For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation \footnote{The implementation of \lstinline{Yield}, \lstinline{Await} and \lstinline{Monadic} is present here for the purpose of introducing ordinary delimited continuation only. It's not the actual approach to implement \lstinline{Yield} in \textit{Dsl.scala}.}, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
 
 \begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as ordinary delimited continuations},label={NonadaptiveYield}]
 case class Yield[Element](element: Element) extends Cont[Stream[Element], Unit] {
@@ -417,11 +417,72 @@ The modified version of \lstinline{Yield} and \lstinline{Await} LDKs are collabo
 
 \subsection{Adaptive library-defined keywords}
 
-In previous sections, we had presented two different implementation of \lstinline{Yield} in Listing~\ref{NonadaptiveYield} and Listing~\ref{Yield-StreamFuture} for creating generators and asynchronous generators, respectively, and two different implementation of \lstinline{Await} in Listing~\ref{NonadaptiveAwait} and Listing~\ref{Await-StreamFuture} for creating asynchronous value and asynchronous generators, respectively. However, compiler-defined keywords \lstinline{await} and \lstinline{yield} in Python are adaptive to their context, available in either cases. In this section, we will introduce the type class \lstinline{Dsl} for creating adaptive library-defined keywords as well.
+In previous sections, we had presented two different implementations of \lstinline{Yield} in Listing~\ref{NonadaptiveYield} and Listing~\ref{Yield-StreamFuture} for creating generators and asynchronous generators, respectively, and two different implementation of \lstinline{Await} in Listing~\ref{NonadaptiveAwait} and Listing~\ref{Await-StreamFuture} for creating asynchronous value and asynchronous generators, respectively. However, compiler-defined keywords \lstinline{await} and \lstinline{yield} in Python are adaptive to their context, available in either cases. In this section, we will introduce the type class \lstinline{Dsl} for creating adaptive library-defined keywords as well.
 
-Listing~\ref{Dsl}
+The \lstinline{Dsl} type class as defined in Listing~\ref{Dsl} is usually used along with \lstinline{Keyword} (Listing~\ref{Keyword}), which should be the super type of all adaptive LDKs.
 
-\section{The implementation of Dsl.scala}
+\begin{lstlisting}[caption={\lstinline{Keyword}, the super type of all adaptive LDKs},label={Keyword}]
+trait Keyword[Self, Value] { this: Self =>
+  def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+    dsl.apply(this, handler)
+  }
+}
+\end{lstlisting}
+
+Every \lstinline{apply} call registers a callback to handle the \lstinline{Value}, and finally returns a \lstinline{Domain}. The keyword's self type, \lstinline{Value}, and the return type \lstinline{Domain} are generic, defined in sub types of \lstinline{Keyword}. The actually implementation of the keyword is defined in the multi-parameter type class \lstinline{Dsl}. For example, the adaptive version of \lstinline{Yield} and \lstinline{Await} can be defined as Listing~\ref{Yield} and Listing~\ref{Await}.
+
+\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
+case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit]
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The \lstinline{Await} LDK, the adaptive version},label={Await}]
+case class Await[Value](future: Future[Value]) extends Keyword[Await[Value], Value]
+\end{lstlisting}
+
+An LDK implementation for a specific domain can be implemented as implicit \lstinline{Dsl} instances for the \lstinline{Keyword} and \lstinline{Domain}. For example, LDKs implementation in Listing~\ref{NonadaptiveYield},  Listing~\ref{NonadaptiveAwait},  Listing~\ref{Yield-StreamFuture} and Listing~\ref{Await-StreamFuture} can be implemented as \lstinline{Dsl} as shown in Listing~\ref{Yield-generator-instance}, Listing~\ref{Yield-async-generator-instance}, Listing~\ref{Await-future-instance} and Listing~\ref{Await-async-generator-instance}.
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Yield} for creating generators},label={Yield-generator-instance}]
+implicit def yieldDsl[Element, B >: Element]: Dsl[Yield[Element], Stream[B], Unit] =
+  new Dsl[Yield[Element], Stream[B], Unit] {
+    def apply(keyword: Yield[Element], mapper: Unit => Stream[B]): Stream[B] = {
+      new Stream.Cons(keyword.element, mapper(()))
+    }
+  }
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Yield} for creating asynchronous generators},label={Yield-async-generator-instance}]
+implicit def futureYieldDsl[Element, B >: Element]: Dsl[Yield[Element], Stream[Future[B]], Unit] =
+  new Dsl[Yield[Element], Stream[Future[B]], Unit] {
+    def apply(keyword: Yield[Element], handler: Unit => Stream[Future[B]]): Stream[Future[B]] = {
+      new Stream.Cons(Future.successful(keyword.element), handler(()))
+    }
+  }
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Await} for creating asynchronous values},label={Await-future-instance}]
+implicit def awaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], Future[B], A] =
+  new Dsl[Await[A], Future[B], A] {
+    def apply(keyword: Await[A], handler: A => Future[B]): Future[B] = {
+      keyword.future.flatMap(handler)
+    }
+  }
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Await} for creating asynchronous generators},label={Await-async-generator-instance}]
+implicit def streamAwaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], Stream[Future[B]], A] =
+  new Dsl[Await[A], Stream[Future[B]], A] {
+    def apply(keyword: Await[A], handler: A => Stream[Future[B]]): Stream[Future[B]] = {
+      val ff = keyword.future.map(handler)
+      new Stream.Cons(ff.flatMap(_.head), result(ff, Duration.Inf).tail)
+    }
+  }
+\end{lstlisting}
+
+By introducing the type class \lstinline{Dsl}, the \lstinline{apply} calls to \lstinline{Keyword} are ad-hoc polymorphic to the specific domain of the call site. As a result, keywords like \lstinline{Yield} and \lstinline{Await} becomes adaptive.
+
+\section{Implementation}
+
+\subsection{Difference between Dsl.scala and Section~\ref{Basic concepts}}
 
 \subsection{The implementation of CPS transformation compiler plug-ins}
 
@@ -515,7 +576,7 @@ In this section, we will show some use cases from the perspective of the user of
 
 % \lstinline{aliceRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{aliceRandomGenerator} will be paused at the LDK \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
-% \lstinline{Yield} is an LDK to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. That is to say, \lstinline{Stream} is the domain where the domain-specific LDK \lstinline{Yield} can be used. More generally, all LDKs are domain-specific, where the word ``domain'' stands for the return type of the enclosing function.
+% \lstinline{Yield} is an LDK to produce a value for a lazily evaluated \lstinline{Stream}, similar to the \lstinline[language=Python]{yield} keyword in C\#, JavaScript or Python. B is to say, \lstinline{Stream} is the domain where the domain-specific LDK \lstinline{Yield} can be used. More generally, all LDKs are domain-specific, where the word ``domain'' stands for the return type of the enclosing function.
 
 \subsection{Creating generators with an additional return value}
 
@@ -941,36 +1002,36 @@ All \textit{Dsl.scala} built-in LDKs are adaptive, which can collaborate with ot
 
 Those LDKs are adaptive because they all extends the \lstinline{trait Keyword}, which has a ad-hoc polymorphic \lstinline{apply} method (Listing \ref{Keyword}).
 
-\begin{lstlisting}[caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
-trait Keyword[Self, Value] extends Any { this: Self =>
+% \begin{lstlisting}[caption={The ad-hoc polymorphism in \lstinline{Keyword}},label={Keyword}]
+% trait Keyword[Self, Value] extends Any { this: Self =>
 
-  @shift
-  @compileTimeOnly("Calls to this method will be translated to apply calls by the compiler plug-in")
-  def unary_! : Value = ???
+%   @shift
+%   @compileTimeOnly("Calls to this method will be translated to apply calls by the compiler plug-in")
+%   def unary_! : Value = ???
 
-  def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
-    dsl.apply(this, handler)
-  }
+%   def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+%     dsl.apply(this, handler)
+%   }
 
-}
-\end{lstlisting}
+% }
+% \end{lstlisting}
 
 The functionality of \lstinline{apply} is implemented in type class instances of \lstinline{Dsl} (Listing \ref{Dsl}).
 
 The adaptive version of \lstinline{Yield} LDK ships with a type class instance of \lstinline{Dsl[Yield[Element], Stream[Element], Unit]}, allowing the \lstinline{!Yield} notation in functions that return \lstinline{Stream[Element]}
 
-\begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
-case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit]
+% \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
+% case class Yield[Element](element: Element) extends Keyword[Yield[Element], Unit]
 
-object Yield {
-  implicit def yieldDsl[Element]: Dsl[Yield[Element], Stream[Element], Unit] =
-    new Dsl[Yield[Element], Stream[Element], Unit] {
-      def apply(keyword: Yield[Element], mapper: Unit => Stream[Element]): Stream[Element] = {
-        new Stream.Cons(keyword.element, mapper(()))
-      }
-    }
-}
-\end{lstlisting}
+% object Yield {
+%   implicit def yieldDsl[Element]: Dsl[Yield[Element], Stream[Element], Unit] =
+%     new Dsl[Yield[Element], Stream[Element], Unit] {
+%       def apply(keyword: Yield[Element], mapper: Unit => Stream[Element]): Stream[Element] = {
+%         new Stream.Cons(keyword.element, mapper(()))
+%       }
+%     }
+% }
+% \end{lstlisting}
 
 To make \lstinline{Yield} LDK available for another domain, just provide a \lstinline{Dsl} type class instance for other types.
 
