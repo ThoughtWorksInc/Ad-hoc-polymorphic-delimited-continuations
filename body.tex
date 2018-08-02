@@ -150,9 +150,13 @@ All code examples except Section~\ref{other-language} are written in our Scala l
 
 \section{Basic concepts}\label{Basic concepts}
 
-Our goal is making the control flow of a programming language be extensible. For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
+Our goal is making the control flow of a programming language be extensible. In this section, we will present the approach used in \textit{Dsl.scala}, to custom programming language features as library-defined keyword (LDK) \footnote{ Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. Multiple LDKs used in one function together make up a custom language for specific domain. No metaprogramming knowledge is required for either keyword authors or keyword users.
 
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that numpy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting is used for clarity.
+\subsection{Implementing LDKs as ordinary delimited continuations}
+
+For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
+
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
 
 \begin{lstlisting}[language=Python,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
 def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
@@ -168,11 +172,11 @@ print(generated_numbers.__next__()) // The first generated random number
 print(generated_numbers.__next__()) // The second generated random number
 \end{lstlisting}
 
-In our \textit{Dsl.scala}-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
+In our LDK-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
 
 \lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
-\begin{lstlisting}[caption={An Xorshift pseudo-random number generator in \textit{Dsl.scala}},label={xorShiftRandomGenerator}]
+\begin{lstlisting}[caption={An Xorshift pseudo-random number generator with the help of the LDK \lstinline{Yield}},label={xorShiftRandomGenerator}]
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
   val tmp1 = seed ^ (seed << 13)
   val tmp2 = tmp1 ^ (tmp1 >>> 17)
@@ -197,9 +201,7 @@ Despite of the implementation of \lstinline{Yield}, which will be revealed in in
   \item Along with LDK, DSLs written in \textit{Dsl.scala} also support native Scala control flows and expressions.
 \end{enumerate}
 
-\subsection{Implementing LDKs as ordinary delimited continuations}
-
-For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation \footnote{The implementation of \lstinline{Yield}, \lstinline{Await} and \lstinline{Monadic} is present here for the purpose of introducing ordinary delimited continuation only. It's not the actual approach to implement \lstinline{Yield} in \textit{Dsl.scala}.}, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
+For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
 
 \begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as ordinary delimited continuations},label={NonadaptiveYield}]
 case class Yield[Element](element: Element) extends Cont[Stream[Element], Unit] {
