@@ -487,49 +487,115 @@ By introducing the type class \lstinline{Dsl}, the \lstinline{apply} calls to \l
 We implemented the LDK approach in the framework \textit{Dsl.scala}, which consists with the following parts:
 
 \begin{description}
-  \item[The core library] contains the definition of the \lstinline{Dsl} type class and \lstinline{Keyword}, the super type of LDKs. They are slightly different from the definition in Listing~\ref{Dsl} and Listing~\ref{Keyword}.
+  \item[The core library] contains the definition of the \lstinline{Dsl} type class and \lstinline{Keyword}, the common super type of LDKs. They are slightly different from the definition in Listing~\ref{Dsl} and Listing~\ref{Keyword}:
   \begin{itemize}
-    \item The \lstinline{apply} method in \lstinline{Dsl} and \lstinline{Keyword} is renamed to \lstinline{cpsApply}.
-    \item There is an additional dummy method \lstinline{unary_!} defined in \lstinline{Keyword}, so that !-notation can be treated as a method call from the point view of type checker when our compiler plug-ins is not enabled. The \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
+    \item The \lstinline{apply} method in \lstinline{Dsl} and \lstinline{Keyword} is renamed to \lstinline{cpsApply} in case of name clash, considering the method name \lstinline{apply} has been widely used in existing Scala libraries.
+    \item There is an additional dummy method \lstinline{unary_!} annotated as \lstinline{@shift} defined in \lstinline{Keyword}. The \lstinline{unary_!} method (or any other \lstinline{@shift}-annotated methods) will be specially treated by our compiler plug-ins, thought it will be considered as an ordinary method from the point view of type checker when our compiler plug-ins is not enabled. The definition of \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
-  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform name-based CPS-transformation according to the control operator \lstinline{!} and \lstinline{@reset} annotation, which are equivalent \lstinline{shift} and \lstinline{reset} control operators to described in \cite{Danvy89afunctional}, respectively. In addition to block expressions mentioned in Listing~\ref{cps-block}, all other Scala first-class control flows are transformed to CPS form by the \lstinline{BangNotation} plug-in \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but method calls.}.
+  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators, respectively, described by \cite{Danvy89afunctional}.
 
-  \item[Keywords] xxx
-  \item[Domains] xx
+  In addition to block expressions mentioned in Listing~\ref{cps-block}, all other first-class control flows in Scala are transformed to CPS form by the \lstinline{BangNotation} plug-in \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but method calls.}.
+
+  Unlike other typed delimited continuation implementations, \lstinline{BangNotation} performs name-based CPS-transformation. Each !-notation in a transformed function can be converted to an arbitrary \lstinline{cpsApply} method call as long as it accepts a callback function parameter. Type checking for the transformed function will be performed once the transformation is done.
+
+  Although the \lstinline{Dsl} type class does not allow changing the domain of a DSL code block, the \lstinline{BangNotation} plug-in itself allows domain changing when the \lstinline{cpsApply} method is implemented without \lstinline{Dsl} type class. Thus, the \lstinline{printf} problem can be trivially resolved by our compiler plug-ins as described in Section~\ref{resolve-printf-problem}.
+  \item[Built-in library-defined keywords] are shipped with \textit{Dsl.scala}, to provide many language features that are not available natively in Scala, including:
+  \begin{itemize}
+    \item The \lstinline{Await} LDK for asynchronous programming with Scala \lstinline{Future}, similar to the \lstinline[language=Python]{await} and \lstinline[language=Python]{async} keywords in C\#, Python and JavaScript.
+    \item The \lstinline{Shift} LDK for asynchronous programming with delimited continuations, similar to the \lstinline{shift} operator in Scala Continuations.
+    \item The \lstinline{AsynchronousIo} LDKs for perform I/O on an asynchronous channel.
+    \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python]{yield} keyword in C\#, Python and JavaScript.
+    \item The \lstinline{Each} LDK for traversing each element of a collection, similar to \lstinline{for}, \lstinline{yield} keywords for Scala collections.
+    \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
+    \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
+    \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
+  \end{itemize}
+  \item[Asynchronous task utilities] contains a \lstinline{Task} type and related utility functions, for stack-safe asynchronous programming with the ability of exception handling and auto-closeable resource management. \lstinline{Task} is a type alias of delimited continuation whose answer type is composed of \lstinline{TailRec} and \lstinline{Throwable} in the approach described in Section~\ref{Composable delimited continuation}.
+
+  According to the result of the benchmarks shown in Section~\ref{Benchmarks}, the computational performance of \lstinline{Task} in \textit{Dsl.scala} is comparable to state-of-the-art Scala asynchronous programming libraries when running in HotSpot Server VM, and it achieves significant higher performance than state-of-the-art libraries when running in GraalVM.
 \end{description}
 
-% bbb
 
-% \subsection{Difference between Dsl.scala and Section~\ref{Basic concepts}}
+\section{Composable delimited continuation}\label{Composable delimited continuation}
 
-% \subsection{The implementation of CPS transformation compiler plug-ins}
+\section{Use cases}
 
-% \subsection{Built-in LDKs}
 
-% \section{Benchmark}
+\subsection{Resolve the \lstinline{printf} problem, trivially}\label{resolve-printf-problem}
 
-% \section{Related works}
+The type-safe \lstinline{printf} problem \cite{danvy1998functional} is often used to demonstrate the ability of modifying the answer type of a typed delimited continuation. The problem can be also resolved by \textit{Dsl.scala}'s CPS-transformation plug-ins as shown in Listing~\ref{printf}.
 
-% \subsection{Haskell's do-notation}
+\begin{lstlisting}[caption={A solution of the type-safe \lstinline{printf} problem in \textit{Dsl.scala}},label={printf}]
+object IntPlaceholder {
+  @shift def unary_! : String = ???
+  def cpsApply[Domain](f: String => Domain): Int => Domain = { i: Int =>
+    f(i.toString)
+  }
+}
 
-% \subsection{Idris's !-notation}
+object StringPlaceholder {
+  @shift def unary_! : String = ???
+  def cpsApply[Domain](f: String => Domain): String => Domain = f
+}
 
-% \subsection{Scala's for-comprehension}
+def f1 = "Hello World!"
+def f2 = "Hello " + !StringPlaceholder + "!"
+def f3 = "The value of " + !StringPlaceholder + " is " + !IntPlaceholder + "."
 
-% \subsection{Scala async}
+println(f1) // Output: Hello World!
+println(f2("World")) // Output: Hello World!
+println(f3("x")(3)) // Output: The value of x is 3.
+\end{lstlisting}
 
-% \subsection{Scala continuations}
+This solution works because our plug-ins performs CPS-transformation for \lstinline{f1}, \lstinline{f2} and \lstinline{f3}, as shown in Listing~\ref{transformed-printf}.
 
-% \subsection{Monad transformers}
+\begin{lstlisting}[caption={The translated source code of \lstinline{Dsl.scala}-base solution of \lstinline{printf} problem},label={transformed-printf}]
+// The type of f1 is inferred as `String`
+def f1 = "Hello World!"
 
-% \subsection{Effect handlers}
+// The type of f2 is inferred as `String => String`
+def f2 = StringPlaceholder.cpsApply { tmp =>
+  "Hello " + tmp + "!"
+}
 
-% \section{Future work}
+// The type of f3 is inferred as `String => Int => String`
+def f3 = StringPlaceholder.cpsApply { tmp0 =>
+  IntPlaceholder.cpsApply { tmp1 =>
+    "The value of " + tmp0 + " is " + tmp1 + "."
+  }
+}
+\end{lstlisting}
 
-% \subsection{Haskell implementation}
+What extraordinary in our solution is its simplicity. 
+\begin{enumerate*}
+  \item No explicit \lstinline{reset} is required, as reset is automatically added by the \lstinline{ResetEverywhere} plug-in.
+  \item No explicit type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
+\end{enumerate*}
 
-% \section{Conclusion}
+\section{Benchmarks}\label{Benchmarks}
+
+\section{Related works}
+
+\subsection{Haskell's do-notation}
+
+\subsection{Idris's !-notation}
+
+\subsection{Scala's for-comprehension}
+
+\subsection{Scala async}
+
+\subsection{Scala continuations}
+
+\subsection{Monad transformers}
+
+\subsection{Effect handlers}
+
+\section{Future work}
+
+\subsection{Haskell implementation}
+
+\section{Conclusion}
 
 
 % % , with some minor differences.
