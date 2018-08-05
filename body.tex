@@ -132,7 +132,7 @@ In the rest sections of this paper, we will present the design and use cases of 
   \item Using any combination of the features (\ref{simulating-monad}), (\ref{composing-delimited-continuations}), (\ref{stack-safe-cont}), and (\ref{simulating-first-class-features}), in single code block.
 \end{enumerate}
 
-All code examples except Section~\ref{other-language} are written in our Scala library \textit{Dsl.scala}, which provides an implementation of \lstinline{Dsl} type class, along with a Scala compiler plug-in to perform CPS-transformation for types that has corresponding \lstinline{Dsl} type class. The compiler plug-in avoids ``callback hell'' problem, allowing a more general version of Idris-like !-notation \cite{brady2013idris} direct style DSL, which can be used for not only monadic data type but also other operations.
+All code examples except Section~\ref{Haskell implementation} are written in our Scala library \textit{Dsl.scala}, which provides an implementation of \lstinline{Dsl} type class, along with a Scala compiler plug-in to perform CPS-transformation for types that has corresponding \lstinline{Dsl} type class. The compiler plug-in avoids ``callback hell'' problem, allowing a more general version of Idris-like !-notation \cite{brady2013idris} direct style DSL, which can be used for not only monadic data type but also other operations.
 
 % TODO:
 
@@ -148,11 +148,13 @@ All code examples except Section~\ref{other-language} are written in our Scala l
 %   \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
 % \end{itemize}
 
-\section{Basic concepts}\label{Basic concepts}
+\section{From delimited continuation to \lstinline{Dsl} type class}\label{Basic concepts}
 
-Our goal is making the control flow of a programming language be extensible. In this section, we will present the approach used in \textit{Dsl.scala}, to custom programming language features as library-defined keyword (LDK) \footnote{ Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. Multiple LDKs used in one function together make up a custom language for specific domain. No metaprogramming knowledge is required for either keyword authors or keyword users.
+Our goal is making the control flow of a programming language be extensible. In this section, we will introducing the \lstinline{Dsl} type class and the concept of name-based CPS transformation from the process of porting some first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries, in the approach introduced in this paper. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in Section~\ref{Haskell implementation}}. But, in other languages, they used to be implemented as  compiler built-in first-class features.
 
-\subsection{Implementing LDKs as ordinary delimited continuations}
+The rest part of this section is organized as following. Firstly, in Section~\ref{Implementing LDKs as ordinary delimited continuations} and Section~\ref{CPS transformation}, we will present how to \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in Section~\ref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a Monad-like interface. Finally, in Section~\ref{Collaborative library-defined keywords} and Section~\ref{Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} type class to unifying all the previous approaches, and in addition, allowing using multiple LDKs like \lstinline{yield} and \lstinline{await} together.
+
+\subsection{Implementing LDKs as ordinary delimited continuations}\label{Implementing LDKs as ordinary delimited continuations}
 
 For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
 
@@ -211,7 +213,7 @@ case class Yield[Element](element: Element) extends Cont[Stream[Element], Unit] 
 }
 \end{lstlisting}
 
-\subsection{CPS transformation}\label{CPS transformation}
+\subsection{Auto-\lstinline{reset} name-based CPS transformation}\label{CPS transformation}
 
 The syntax of Listing~\ref{xorShiftRandomGenerator} differs from first-class generators in Python, ECMAScript, and C\#, as the code block contains some manually created CPS closures. Ideally, the ``rest'' program after a \lstinline{Yield} operation should be indented at the same level of \lstinline{Yield}, not in a nested closure. This coding style can be achieved by the !-notation provided by \textit{Dsl.scala}'s built-in compiler plug-ins. The function \lstinline{xorShiftRandomGenerator} can be written as Listing~\ref{xorShiftRandomGenerator-bang} with the help of the !-notation plug-ins.
 
@@ -241,7 +243,7 @@ Because of the implicitly added \lstinline{reset} control operator, the boundary
 
 There is another difference between our compiler plug-ins and Scala Continuation. Our compiler plug-ins are name-based instead of type-based, allowing CPS-transformation in monadic blocks, which will be discussed in next section.
 
-\subsection{Monadic blocks}
+\subsection{Monadic blocks}\label{Monadic blocks}
 
 In previous sections, we have demonstrated how to port the compiler-defined keyword \lstinline{yield} to Scala, as a library-defined keyword. In this section, we will demonstrate how to import another compiler-defined keyword, \lstinline{await}, to Scala, as a library-defined keyword.
 
@@ -357,7 +359,7 @@ case class Monadic[F[_], A](fa: F[A]) {
 
 \lstinline{Monadic} is an more generic LDK than \lstinline{Await}, able to ``extract'' any monadic value, not only future, as long as the corresponding \lstinline{Monad} type class instance exists.
 
-\subsection{Collaborative library-defined keywords}
+\subsection{Collaborative library-defined keywords}\label{Collaborative library-defined keywords}
 
 By now, we ported Python's compiler-defined keywords \lstinline{yield} and \lstinline{await} to Scala, as library-defined keywords. However, those keywords are not collaborative. LDK \lstinline{Yield} and \lstinline{Await} implemented in previous sections cannot be present in one function, while Python 3.5 allows using \lstinline{yield} and \lstinline{await} together to create asynchronous generators.
 
@@ -516,11 +518,11 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
   According to the result of the benchmarks shown in Section~\ref{Benchmarks}, the computational performance of \lstinline{Task} in \textit{Dsl.scala} is comparable to state-of-the-art Scala asynchronous programming libraries when running in HotSpot Server VM, and it achieves significant higher performance than state-of-the-art libraries when running in GraalVM.
 \end{description}
 
-
 \section{Composable delimited continuation}\label{Composable delimited continuation}
 
-\section{Use cases}
 
+
+\section{Use cases}
 
 \subsection{Resolve the \lstinline{printf} problem, trivially}\label{resolve-printf-problem}
 
@@ -567,7 +569,7 @@ def f3 = StringPlaceholder.cpsApply { tmp0 =>
 }
 \end{lstlisting}
 
-What extraordinary in our solution is its simplicity. 
+Our solution is conciser than the solution with Scala Continuations, because:
 \begin{enumerate*}
   \item No explicit \lstinline{reset} is required, as reset is automatically added by the \lstinline{ResetEverywhere} plug-in.
   \item No explicit type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
@@ -593,7 +595,7 @@ What extraordinary in our solution is its simplicity.
 
 \section{Future work}
 
-\subsection{Haskell implementation}
+\subsection{Haskell implementation}\label{Haskell implementation}
 
 \section{Conclusion}
 
