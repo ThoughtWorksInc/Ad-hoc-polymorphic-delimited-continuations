@@ -84,7 +84,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   	rankdir=LR
 
   	subgraph cluster_code_block {
-      graph [ label="\textrm{a code block that returns any compatible type}" ]
+      graph [ label="\textrm{a code block that returns any \texttt{Domain}}" ]
       Keyword_0
       Keyword_1
       Keyword_2
@@ -112,7 +112,7 @@ Ordinary delimited continuations \cite{Danvy89afunctional} can be defined as a f
 type Cont[Domain, Value] = (Value => Domain) => Domain
 \end{lstlisting}
 
-The difference is that a \lstinline{Cont} itself contains the implementation of an operation while in our approach each operation is ad-hoc polymorphic to the \lstinline{Domain} by separating to the syntactic \lstinline{Keyword} and its implementation \lstinline{Dsl}, as shown in Figure~\ref{cont-architecture} and Figure~\ref{dsl-architecture}.
+A \lstinline{Cont} itself contains the implementation of an operation, as shown in Figure~\ref{cont-architecture}. As a result, a delimited continuation can only be used in a function that returns the specified \lstinline{Domain}. Unlike ordinary \lstinline{Cont}, in our approach, each operation is an ad-hoc polymorphic \lstinline{Keyword} to the \lstinline{Domain}, thus the it is can be interpreted differently according to the enclosing \lstinline{Domain}, as shown in Figure~\ref{dsl-architecture}.
 
 In the rest sections of this paper, we will present the design and use cases of \lstinline{Dsl} type class, including:
 
