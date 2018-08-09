@@ -518,8 +518,12 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
   According to the result of the benchmarks shown in Section~\ref{Benchmarks}, the computational performance of \lstinline{Task} in \textit{Dsl.scala} is comparable to state-of-the-art Scala asynchronous programming libraries when running in HotSpot Server VM, and it achieves significant higher performance than state-of-the-art libraries when running in GraalVM.
 \end{description}
 
-\section{Composable delimited continuation}\label{Composable delimited continuation}
+\section{\lstinline{Dsl} Derivation}\label{Composable delimited continuation}
 
+In Section~\ref{Adaptive library-defined keywords}, we have present how to create a LDK for different domains, interpreted by different \lstinline{Dsl} type class instances. In this section, we will discuss derived \lstinline{Dsl} type class instances for a LDK, available in derived domains.
+
+% derivation
+% % TODO: yield from
 
 
 \section{Use cases}
@@ -576,6 +580,25 @@ Our solution is conciser than the solution with Scala Continuations, because:
 \end{enumerate*}
 
 \section{Benchmarks}\label{Benchmarks}
+
+\section{Discussion}
+\subsection{\lstinline{Dsl} vs \lstinline{Monad}}
+
+% In Section~\ref{Basic concepts}, we have demonstrated \lstinline{Dsl} type class can be considered as both superset of monads and delimited continuations. The additional ability of allowing
+
+% % Straightforwardness, Extensibility and 
+% In this section, we will present the ho
+
+% address the straightforwardness, extensibility and performance problem when handle effects with monads, 
+
+% However, monads are not extensible, 
+
+% Since monads are often used to handle effects, in this section, we will present how to handle effects in \lstinline{Dsl.scala}.
+
+
+
+% % In this 
+
 
 \section{Related works}
 
