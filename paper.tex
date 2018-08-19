@@ -16,6 +16,14 @@
 
 \usepackage{listings}
 
+% \lstset{
+%   language=Python,
+% }
+
+
+\lstdefinestyle{Python3}{
+  morekeywords={yield,await,async}
+}
 \lstset{
   language=Scala,
   basicstyle=\ttfamily,
@@ -25,11 +33,9 @@
   captionpos=b,
   tabsize=2,
   frame=top,frame=bottom,
+  morekeywords={async,await,from}
 }
 
-\lstset{
-  morekeywords={await}
-}
  
 % \usepackage{markdown}
 
