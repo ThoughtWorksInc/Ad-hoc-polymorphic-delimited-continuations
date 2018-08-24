@@ -530,7 +530,7 @@ def final_generator() -> Iterator[str]:
 print(*final_generator(), sep='\n')
 \end{lstlisting}
 
-Unlike generators in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{returnable_generator} has an additional ability of returning values, thus its return type becomes to \lstinline{Generator[str, None, int]}, where \lstinline{str} is the iterator element type and \lstinline{int} is the type to return \footnote{Note that the declared return type and the type to return are different in Python generators}.
+Unlike generators in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{returnable_generator} has an additional ability of returning values, thus its return type becomes to \lstinline{Generator[str, None, int]}, where \lstinline{str} is the iterator element type and \lstinline{int} is the type to return \footnote{Note that the declared return type and the type to return are different in Python generators. In other words, the \lstinline{return} keyword in Python ``lifts'' the plain value to a \lstinline{Generator}.}.
 
 When porting \lstinline{return} and \lstinline{yield from} to Scala, the return type should indicate both the element type and the type to return, thus \lstinline{Stream} is not applicable for return type any more. We can instead use the return type \lstinline{Continuation[Stream[String], Int]}, as shown in Listing~\ref{returnableGenerator}. It accepts a callback function \lstinline{Int => String}, which can handle the \lstinline{Int} value being \lstinline{Return}ed.
 
@@ -556,7 +556,7 @@ def finalGenerator(): Stream[String] = {
 finalGenerator.foreach(println)
 \end{lstlisting}
 
-We also create new LDKs \lstinline{Shift} and \lstinline{Return} as the replacements of Python's \lstinline{yield from} and \lstinline{return}, respectively, as shown in Listing~\ref{Shift} and Listing~\ref{Return}. We don't use native Scala \lstinline{return} because it lacks the ability of ``lifting'' values like Python \lstinline{return} does in generators.
+We also create new LDKs \lstinline{Shift} and \lstinline{Return} as the replacements of Python's \lstinline{yield from} and \lstinline{return}, respectively, as shown in Listing~\ref{Shift} and Listing~\ref{Return}. We don't use the native Scala keyword \lstinline{return} because it lacks the ability of ``lifting'' values like Python \lstinline{return} does in generators.
 
 \begin{lstlisting}[caption={The definition of \lstinline{Shift} LDK},label={Shift}]
 case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) extends Keyword[Shift[Domain, Value], Value]
@@ -566,23 +566,23 @@ case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) exten
 case class Return[A](returnValue: A) extends Keyword[Return[A], Nothing]
 \end{lstlisting}
 
-As we had split LDK declaration (i.e. subtypes of \lstinline{Keyword}) from its implementation (i.e. \lstinline{Dsl} type class instances), the following type class instances is required to compile Listing~\ref{returnableGenerator}:
+As described in Section~\ref{Adaptive library-defined keywords}, we had split the LDK declaration (i.e. a subtype of \lstinline{Keyword}) from its implementation (i.e. a \lstinline{Dsl} type class instance), the following type class instances is required to compile Listing~\ref{returnableGenerator}:
 
 \begin{enumerate}
-  \item \lstinline{Dsl[Yield[String], Stream[String], Unit]} \\ (required by \lstinline{!Yield} LDKs in \lstinline{finalGenerator})
+  \item \lstinline{Dsl[Yield[String], Stream[String], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{finalGenerator})
   \label{DslYield}
 
-  \item \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], String]} \\ (required by \lstinline{!Shift} LDKs in \lstinline{finalGenerator})
+  \item \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], String]} \\ (required by \lstinline{!Shift} in \lstinline{finalGenerator})
   \label{DslShift}
   
-  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} LDKs in \lstinline{returnableGenerator})
+  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} in \lstinline{returnableGenerator})
   \label{DslReturn}
   
-  \item \lstinline{Dsl[Yield[String], Continuation[Stream[String], Int], Unit]} \\ (required by \lstinline{!Yield} LDKs in \lstinline{returnableGenerator})
+  \item \lstinline{Dsl[Yield[String], Continuation[Stream[String], Int], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{returnableGenerator})
   \label{DslYieldContinuation}
 \end{enumerate}
 
-As we had introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{Dsl} instance \ref{DslYield} can be resolved as \lstinline{yieldDsl[Stirng, String]} from the type class instance defined in Listing~\ref{Yield-generator-instance}. \lstinline{Dsl} instance \ref{DslShift} should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}. Since a \lstinline{!Return} LDK immediately return from the current function, the implementation of \lstinline{Dsl} instance \ref{DslReturn} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}.
+As we had introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{Dsl} instance \ref{DslYield} can be resolved as \lstinline{yieldDsl[Stirng, String]} from the type class instance defined in Listing~\ref{Yield-generator-instance}. \lstinline{Dsl} instance \ref{DslShift} should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}. Since a \lstinline{!Return} LDK immediately returns from the current function, the implementation of \lstinline{Dsl} instance \ref{DslReturn} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}.
 
 \begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to underlying \lstinline{continuation}},label={shiftDsl}]
 implicit def shiftDsl[Domain, Value] =
@@ -599,7 +599,7 @@ implicit def returnDsl[A] =
   }
 \end{lstlisting}
 
-\lstinline{Dsl} instance \ref{DslYieldContinuation} should allow registering a callback of \lstinline{Unit => Continuation[Stream[String], Int]} and then return a new \lstinline{Continuation[Stream[String], Int]}. Since the return type of the newly created \lstinline{Continuation} is \lstinline{Stream[String]}, the \lstinline{Yield[String]} keyword can be performed by existing \lstinline{Dsl} instance \ref{DslYield}, the extracted value \lstinline{v} is then passed to \lstinline{handler} to continue the execution of rest program, as shown in Listing~\ref{yieldContinuationDsl}.
+\lstinline{Dsl} instance \ref{DslYieldContinuation} should allow registering a callback \lstinline{handler} and then return a new continuation, whose return type is \lstinline{Stream[String]}. Thus, the \lstinline{Yield[String]} keyword can be performed inside the newly created continuation, by the existing \lstinline{Dsl} instance \lstinline{yieldDsl[String, String]}. The extracted value \lstinline{v} and final handler \lstinline{k} is then passed to \lstinline{handler} to continue the execution of rest program, as shown in Listing~\ref{yieldContinuationDsl}.
 
 \begin{lstlisting}[caption={The derived \lstinline{Dsl} instance for \lstinline{Yield} LDK, which can be used in a \lstinline{Continuation}},label={yieldContinuationDsl}]
 implicit def yieldContinuationDsl = {
@@ -630,7 +630,7 @@ implicit def continuationDsl[Keyword, LeftDomain, RightDomain, Value](
 }
 \end{lstlisting}
 
-Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{continuationDsl(yieldDsl)}. The ability of \lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. Section~\ref{Multiple mutable states} contains a more complex example TODO
+Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{continuationDsl(yieldDsl)}. \lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. We will present another example of creating extensible effects with the help of \lstinline{Dsl} derivation in Section~\ref{Multiple mutable states}.
 
 \section{Use cases}
 
