@@ -575,27 +575,20 @@ As described in Section~\ref{Adaptive library-defined keywords}, we had split th
   \item \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], String]} \\ (required by \lstinline{!Shift} in \lstinline{finalGenerator})
   \label{DslShift}
   
-  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} in \lstinline{returnableGenerator})
-  \label{DslReturn}
-  
   \item \lstinline{Dsl[Yield[String], Continuation[Stream[String], Int], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{returnableGenerator})
   \label{DslYieldContinuation}
+  
+  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} in \lstinline{returnableGenerator})
+  \label{DslReturn}
 \end{enumerate}
 
-As we had introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{Dsl} instance \ref{DslYield} can be resolved as \lstinline{yieldDsl[Stirng, String]} from the type class instance defined in Listing~\ref{Yield-generator-instance}. \lstinline{Dsl} instance \ref{DslShift} should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}. Since a \lstinline{!Return} LDK immediately returns from the current function, the implementation of \lstinline{Dsl} instance \ref{DslReturn} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}.
+As we had introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{Dsl} instance \ref{DslYield} can be resolved as \lstinline{yieldDsl[Stirng, String]} from the type class instance defined in Listing~\ref{Yield-generator-instance}. \lstinline{Dsl} instance \ref{DslShift} should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}.
 
 \begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to underlying \lstinline{continuation}},label={shiftDsl}]
 implicit def shiftDsl[Domain, Value] =
   new Dsl[Shift[Domain, Value], Domain, Value] {
     def cpsApply(keyword: Shift[Domain, Value], handler: Value => Domain) =
       keyword.continuation(handler)
-  }
-\end{lstlisting}
-\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Return} LDK, to skip the registered callback function},label={returnDsl}]
-implicit def returnDsl[A] =
-  new Dsl[Return[A], A, Nothing] {
-    def cpsApply(keyword: Return[A], handler: Nothing => A) =
-      keyword.returnValue
   }
 \end{lstlisting}
 
@@ -614,10 +607,10 @@ implicit def yieldContinuationDsl = {
 
 As described in Section~\ref{Implementation}, \lstinline{!keyword} will be desugared to \lstinline[mathescape=true]|keyword.cpsApply { v => $\hdots$ }|, which is equivalent to \lstinline[mathescape=true]|yieldDsl[String, String].cpsApply(keyword, { v => $\hdots$ })| after inlining \lstinline{Keyword.cpsApply}. Therefore, \lstinline{yieldContinuationDsl} can be considered as a derived \lstinline{Dsl} instance of implicitly resolved \lstinline{yieldDsl}.
 
-The implementation of \lstinline{yieldContinuationDsl} can be generalized to any other LDKs, because \lstinline{yieldContinuationDsl} does not touch any internal state of \lstinline{Yield} except passing \lstinline{Yield} to \lstinline{yieldDsl}. Any instance of \lstinline{Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value]} can be derived from \lstinline{Dsl[Keyword, LeftDomain, Value]} as shown in Listing~\ref{continuationDsl}.
+The implementation of \lstinline{yieldContinuationDsl} can be generalized to any other LDKs, because \lstinline{yieldContinuationDsl} does not touch any internal state of \lstinline{Yield} except passing \lstinline{Yield} to \lstinline{yieldDsl}. Any instance of \lstinline{Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value]} can be derived from \lstinline{Dsl[Keyword, LeftDomain, Value]} as shown in Listing~\ref{derivedContinuationDsl}.
 
-\begin{lstlisting}[caption={The generic derived \lstinline{Dsl} instance for any LDK, which can be used in a \lstinline{Continuation}},label={continuationDsl}]
-implicit def continuationDsl[Keyword, LeftDomain, RightDomain, Value](
+\begin{lstlisting}[caption={The generic derived \lstinline{Dsl} instance for any LDK, which can be used in a \lstinline{Continuation}},label={derivedContinuationDsl}]
+implicit def derivedContinuationDsl[Keyword, LeftDomain, RightDomain, Value](
   implicit restDsl: Dsl[Keyword, LeftDomain, Value]
 ) = {
   new Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value] {
@@ -630,9 +623,24 @@ implicit def continuationDsl[Keyword, LeftDomain, RightDomain, Value](
 }
 \end{lstlisting}
 
-Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{continuationDsl(yieldDsl)}. \lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. We will present another example of creating extensible effects with the help of \lstinline{Dsl} derivation in Section~\ref{Multiple mutable states}.
+Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{derivedContinuationDsl(yieldDsl)}.
+
+
+Similarly, since a \lstinline{!Return} LDK immediately returns from the current function, the implementation of \lstinline{Dsl} instance for \lstinline{!Return} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}. \lstinline{Dsl} instance \ref{DslReturn} can be resolved as \lstinline{derivedContinuationDsl(returnDsl)}.
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Return} LDK, to skip the registered callback function},label={returnDsl}]
+implicit def returnDsl[A] =
+  new Dsl[Return[A], A, Nothing] {
+    def cpsApply(keyword: Return[A], handler: Nothing => A) =
+      keyword.returnValue
+  }
+\end{lstlisting}
+
+\lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. We will present another example of creating extensible effects with the help of \lstinline{Dsl} derivation in Section~\ref{Multiple mutable states}.
 
 \section{Use cases}
+
+We will some use cases of name based CPS transformation and LDK or  in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
 
 \subsection{Resolve the \lstinline{printf} problem, trivially}\label{resolve-printf-problem}
 
@@ -685,12 +693,101 @@ Our solution is conciser than the solution with Scala Continuations, because:
   \item No explicit type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
 \end{enumerate*}
 
-\subsection{Multiple mutable states}\label{Multiple mutable states}
+\subsection{Mutable states}
+
+Purely functional programming languages usually do not support first-class mutable variables. In those languages, mutable states can be implemented in state monads. In this section, we will present an alternative approach based on LDK to simulate mutable variable in a pure language \footnote{Scala is an impure language, but we don't use Scala's native \lstinline{var} or other impure features when simulating mutable states, therefore, our approach can be ported to Haskell or other pure languages as described in Section~\ref{Haskell implementation}.}. Unlike state monads, our LDK-based approach is more straightforward, and supports multiple mutable states without manually lifting.
+
+\subsubsection{Single mutable state}
+We use unary function as the domain of mutable state. The parameter of the unary function can be read from \lstinline{Get} LDK, and changed by \lstinline{Put} LDK, which are defined in Listing~\ref{Get} and Listing~\ref{Put}, respectively.
+
+\begin{lstlisting}[caption={The definition of \lstinline{Get} LDK},label={Get}]
+case class Get[S]() extends Keyword[Get[S], S]
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The definition of \lstinline{Put} LDK},label={Put}]
+case class Put[S](value: S) extends Keyword[Put[S], Unit]
+\end{lstlisting}
+
+Listing~\ref{upperCasedLastCharacter} is an example that creates a unary function that accepts a string parameter and returns the upper-cased last character of the parameter. The initial value is read from \lstinline{Get} LDK, then it is changed to upper-case by \lstinline{Put} LDK. At last, another \lstinline{Get} LDK is performed to read again  the changed value, and the last character is returned.
+
+\begin{lstlisting}[caption={Using \lstinline{Get} and \lstinline{Put} in a unary function},label={upperCasedLastCharacter}]
+def upperCasedLastCharacter: String => Char = {
+  val initialValue = !Get[String]()
+  !Put(initialValue.toUpperCase)
+
+  val upperCased = !Get[String]()
+  Function.const(upperCased.last)
+}
+
+// Output: O
+println(upperCasedLastCharacter("foo"))
+\end{lstlisting}
+
+The \lstinline{Dsl} instances for \lstinline{Get} and \lstinline{Put} used in \lstinline{upperCasedLastCharacter} are shown in Listing~\ref{getDsl} and Listing~\ref{putDsl}. The \lstinline{Dsl} instance for \lstinline{Get} LDK passes the \lstinline{currentValue} to the \lstinline{handler} of current LDK, and then continues the enclosing unary function; the \lstinline{Dsl} instance for \lstinline{Put} LDK ignores \lstinline{previousValue} and continues the enclosing unary function with the new \lstinline{value} in \lstinline{Put}.
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance for \lstinline{Get} LDK},label={getDsl}]
+
+implicit def getDsl[S0, S <: S0, A] =
+  new Dsl[Get[S0], S => A, S0] {
+    def cpsApply(keyword: Get[S0], handler: S0 => S => A): S => A = { currentValue =>
+      handler(currentValue)(currentValue)
+    }
+  }
+\end{lstlisting}
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance for \lstinline{Put} LDK},label={putDsl}]
+implicit def putDsl[S0, S >: S0, A] =
+  new Dsl[Put[S0], S => A, Unit] {
+    def cpsApply(keyword: Put[S0], handler: Unit => S => A): S => A = { previousValue =>
+      handler(())(keyword.value)
+    }
+  }
+\end{lstlisting}
+
+Traditionally, the data type of state monad is an opaque type alias of \lstinline{S => (S, A)}, which is more complicated than our domain type \lstinline{S => A}, indicating state monads are potentially less efficient than LDK-based implementation. We will discuss the reason why monad-based DSL are more complicated and less efficient than LDK-based DSL in Section~\ref{Monads}.
+
+\subsubsection{Multiple mutable states}\label{Multiple mutable states}
+
+\lstinline{Get} and \lstinline{Put} LDKs can be performed on multiple mutable states as well. The domain types are curried functions in those use cases.
+
+Listing~\ref{formatter} shows an example to create a \lstinline{formatter} that performs \lstinline{Put} on a \lstinline{List[Any]} to store parts of the string content. At last, a \lstinline{Return} LDK is performed at last to concatenate those parts. The \lstinline{formatter} internally performs different types of \lstinline{Get} LDK to retrieve different parameters.
+
+\begin{lstlisting}[caption={Using \lstinline{Get} and \lstinline{Put} in a curried function},label={formatter}]
+def formatter: Double => Int => Vector[Any] => String = {
+  !Put(!Get[Vector[Any]] :+ "x=")
+  !Put(!Get[Vector[Any]] :+ !Get[Double])
+  !Put(!Get[Vector[Any]] :+ ",y=")
+  !Put(!Get[Vector[Any]] :+ !Get[Int])
+
+  !Return((!Get[Vector[Any]]).mkString)
+}
+
+// Output: x=0.5,y=42
+println(formatter(0.5)(42)(Vector.empty))
+\end{lstlisting}
+
+Since we had introduced \lstinline{Dsl} instance for \lstinline{Get} and \lstinline{Put} LDKs in unary functions, now we only need a derived \lstinline{Dsl} instance to port these LDKs in curried functions, as shown in Listing~\ref{derivedFunction1Dsl}.
+
+\begin{lstlisting}[caption={Derived \lstinline{Dsl} instance in a curried function},label={derivedFunction1Dsl}]
+implicit def derivedFunction1Dsl[Keyword, State, Domain, Value](
+  implicit restDsl: Dsl[Keyword, Domain, Value]
+): Dsl[Keyword, State => Domain, Value] =
+new Dsl[Keyword, State => Domain, Value] {
+  def cpsApply(keyword: Keyword, handler: Value => State => Domain): State => Domain = { state: State =>
+    restDsl.cpsApply(keyword, handler(_)(state))
+  }
+}
+\end{lstlisting}
+
+By combining \lstinline{getDsl} and \lstinline{derivedFunction1Dsl} together, the Scala compiler automatically searches matched type in the curried function when resolving the implicit \lstinline{Dsl} instance for a \lstinline{Get} LDK. For example, \lstinline{!Get[Vector[Any]]()} reads the third parameter of the \lstinline{formatter}. It will be translated to \lstinline[mathescape=true]|Get[Vector[Any]]().cpsApply { _ => $\hdots$ }|, where the \lstinline{cpsApply} call requires an instance of type \lstinline{Dsl[Get[Vector[Any]], Double => Int => Vector[Any] => String, Vector[Any]]}, which can resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(getDsl))}. Similarly, the \lstinline{Dsl} instance for reading the first parameter and the second parameter can be resolved as \lstinline{getDsl} and \lstinline{derivedFunction1Dsl(getDsl)}, respectively.
+
+Derived \lstinline{Dsl} instance for \lstinline{Put} and \lstinline{Return} can be resolved similarly. Since all the \lstinline{!Put} LDK in \lstinline{formatter} write the third parameter, their \lstinline{Dsl} instances can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(putDsl))}; the \lstinline{Dsl} instance for \lstinline{!Return} can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(derivedFunction1Dsl(returnDsl)))}.
+
+Now we had demonstrated a simple and straightforward solution for the feature of multiple mutable states, with the help of nested \lstinline{Dsl} derivation. Alternate approaches of multiple mutable states will be discussed in Section~\ref{Monad transformers} and Section~\ref{Effect handlers}.
 
 \section{Benchmarks}\label{Benchmarks}
 
 \section{Discussion}
-\subsection{\lstinline{Dsl} vs \lstinline{Monad}}
 
 % In Section~\ref{Basic concepts}, we have demonstrated \lstinline{Dsl} type class can be considered as both superset of monads and delimited continuations. The additional ability of allowing
 
@@ -710,6 +807,14 @@ Our solution is conciser than the solution with Scala Continuations, because:
 
 \section{Related works}
 
+\subsection{Monads}\label{Monads}
+
+\subsubsection{Free and Freer monads}\label{Effect handlers}
+
+\subsubsection{Monad transformers}\label{Monad transformers}
+
+\subsubsection{Effect handlers}\label{Effect handlers}
+
 \subsection{Haskell's do-notation}
 
 \subsection{Idris's !-notation}
@@ -719,10 +824,6 @@ Our solution is conciser than the solution with Scala Continuations, because:
 \subsection{Scala async}
 
 \subsection{Scala continuations}
-
-\subsection{Monad transformers}\label{Monad transformers}
-
-\subsection{Effect handlers}\label{Effect handlers}
 
 \section{Future work}
 
@@ -1253,10 +1354,10 @@ Our solution is conciser than the solution with Scala Continuations, because:
 
 % To make \lstinline{Yield} LDK available for another domain, just provide a \lstinline{Dsl} type class instance for other types.
 
-% Listing \ref{continuationDsl} shows a \lstinline{Dsl} that allows an LDK be available for \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.  \footnote{LDKs is also adaptive to domains other than continuations, such as a heterogeneous list that contains multiple sub-domains.}
+% Listing \ref{derivedContinuationDsl} shows a \lstinline{Dsl} that allows an LDK be available for \lstinline{Domain!!Value} as long as the LDK is available for \lstinline{Domain}.  \footnote{LDKs is also adaptive to domains other than continuations, such as a heterogeneous list that contains multiple sub-domains.}
 
-% \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={continuationDsl}]
-% implicit def continuationDsl[Keyword, Domain, Value, KeywordValue](
+% \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={derivedContinuationDsl}]
+% implicit def derivedContinuationDsl[Keyword, Domain, Value, KeywordValue](
 %   implicit restDsl: Dsl[Keyword, Domain, KeywordValue]
 % ): Dsl[Keyword, Domain !! Value, KeywordValue] = {
 %   new Dsl[Keyword, Domain !! Value, KeywordValue] {
@@ -1270,7 +1371,7 @@ Our solution is conciser than the solution with Scala Continuations, because:
 % }
 % \end{lstlisting}
 
-% Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !! JsonType)} domain as shown in Listing \ref{bobLoggingParserReset}, because the type class \lstinline{Dsl[Yield[String], Stream !! JsonType, Unit]} can be implicitly resolved as \lstinline{continuationDsl(yieldDsl)}.
+% Therefore, the \lstinline{Yield} LDK can be used in \lstinline{(Stream[String] !! JsonType)} domain as shown in Listing \ref{bobLoggingParserReset}, because the type class \lstinline{Dsl[Yield[String], Stream !! JsonType, Unit]} can be implicitly resolved as \lstinline{derivedContinuationDsl(yieldDsl)}.
 
 % \section{Benchmark}\label{Benchmark}
 
