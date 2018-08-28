@@ -475,11 +475,11 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
     \item There is an additional dummy method \lstinline{unary_!} annotated as \lstinline{@shift} defined in \lstinline{Keyword}. The \lstinline{unary_!} method (or any other \lstinline{@shift}-annotated methods) will be specially treated by our compiler plug-ins, thought it will be considered as an ordinary method from the point view of type checker when our compiler plug-ins is not enabled. The definition of \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
-  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators, respectively, described by \cite{Danvy89afunctional}.
+  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators, respectively, described by \cite{Danvy89afunctional}.
 
-  In addition to block expressions mentioned in Listing~\ref{cps-block}, all other first-class control flows in Scala are transformed to CPS form by the \lstinline{BangNotation} plug-in \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but method calls.}.
+  In addition to block expressions mentioned in Listing~\ref{cps-block}, all other first-class control flows in Scala are transformed to CPS form by the \lstinline{BangNotation} plug-in \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but a group of nested method calls.}.
 
-  Unlike other typed delimited continuation implementations, \lstinline{BangNotation} performs name-based CPS-transformation. Each !-notation in a transformed function can be converted to an arbitrary \lstinline{cpsApply} method call as long as it accepts a callback function parameter. Type checking for the transformed function will be performed once the transformation is done.
+  Unlike other typed delimited continuation implementations, the \lstinline{BangNotation} plug-in performs name-based CPS-transformation. Each !-notation in a transformed function can be converted to an arbitrary \lstinline{cpsApply} method call as long as it accepts a callback function parameter. Type checking for the transformed function will be performed once the transformation is done.
 
   Although the \lstinline{Dsl} type class does not allow changing the domain of a DSL code block, the \lstinline{BangNotation} plug-in itself allows domain changing when the \lstinline{cpsApply} method is implemented without \lstinline{Dsl} type class. Thus, the \lstinline{printf} problem can be trivially resolved by our compiler plug-ins as described in Section~\ref{resolve-printf-problem}.
   \item[Built-in library-defined keywords] are shipped with \textit{Dsl.scala}, to provide many language features that are not available natively in Scala, including:
@@ -497,146 +497,6 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
 
   According to the result of the benchmarks shown in Section~\ref{Benchmarks}, the computational performance of \lstinline{Task} in \textit{Dsl.scala} is comparable to state-of-the-art Scala asynchronous programming libraries when running in HotSpot Server VM, and it achieves significant higher performance than state-of-the-art libraries when running in GraalVM.
 \end{description}
-
-\section{\lstinline{Dsl} Derivation}\label{Composable delimited continuation}
-
-In Section~\ref{Adaptive library-defined keywords}, we have present how to create an LDK for different domains, interpreted by different implementations of \lstinline{Dsl} type class instances. In this section, we will discuss derived \lstinline{Dsl} type class instances for an LDK, available in derived domains.
-
-A derived domain means a domain whose type signature contains another domain, and a derived \lstinline{Dsl} means a \lstinline{Dsl} whose implementation internally invokes another \lstinline{Dsl}. The need of derived domains and \lstinline{Dsl}s usually comes when introducing a new LDK to an unsupported domain \footnote{Monad transformers and effect handlers are alternative approaches to \lstinline{Dsl} derivation, which will be discussed in Section~\ref{Monad transformers} and Section~\ref{Effect handlers}.}.
-
-For example, in addition to \lstinline{yield}, Python generators also allow the \lstinline{return} and \lstinline{yield from} keywords. A generator that contains both \lstinline{yield} and \lstinline{return} keywords can be invoked by \lstinline{yield from} in another generator. The elements \lstinline{yield}ed by the former generator will be added into the latter generator, and the return value of the former generator can be in the latter generator, too. An example of \lstinline{return} and \lstinline{yield from} is shown in Listing~\ref{returnable_generator}.
-
-\begin{lstlisting}[language=Python,style=Python3,caption={Use \lstinline{yield from} and \lstinline{return} in Python generators},label={returnable_generator}]
-def returnable_generator(early_return: bool) -> Generator[str, None, int]:
-  yield 'inside returnable_generator'
-  if early_return:
-    yield 'early return'
-    return 1
-  yield 'normal return'
-  return 0
-
-def final_generator() -> Iterator[str]:
-  yield 'before returnable_generator'
-  v = yield from returnable_generator(True)
-  yield 'after returnable_generator'
-  yield f'the return value of returnable_generator is {v}'
-
-# Output:
-#   before returnable_generator
-#   inside returnable_generator
-#   early return
-#   after returnable_generator
-#   the return value of returnable_generator is 1
-print(*final_generator(), sep='\n')
-\end{lstlisting}
-
-Unlike generators in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{returnable_generator} has an additional ability of returning values, thus its return type becomes to \lstinline{Generator[str, None, int]}, where \lstinline{str} is the iterator element type and \lstinline{int} is the type to return \footnote{Note that the declared return type and the type to return are different in Python generators. In other words, the \lstinline{return} keyword in Python ``lifts'' the plain value to a \lstinline{Generator}.}.
-
-When porting \lstinline{return} and \lstinline{yield from} to Scala, the return type should indicate both the element type and the type to return, thus \lstinline{Stream} is not applicable for return type any more. We can instead use the return type \lstinline{Continuation[Stream[String], Int]}, as shown in Listing~\ref{returnableGenerator}. It accepts a callback function \lstinline{Int => String}, which can handle the \lstinline{Int} value being \lstinline{Return}ed.
-
-\begin{lstlisting}[caption={Use \lstinline{Shift} and \lstinline{Return} in LDK-based generators},label={returnableGenerator}]
-def returnableGenerator(earlyReturn: Boolean): Continuation[Stream[String], Int] = {
-  !Yield("inside returnableGenerator")
-  if (earlyReturn) {
-    !Yield("early return")
-    !Return(1)
-  }
-  !Yield("normal return")
-  !Return(0)
-}
-
-def finalGenerator(): Stream[String] = {
-  !Yield("before returnableGenerator")
-  val v = !Shift(returnableGenerator(true))
-  !Yield("after returnableGenerator")
-  !Yield(s"the return value of returnableGenerator is $v")
-  Stream.empty
-}
-
-finalGenerator.foreach(println)
-\end{lstlisting}
-
-We also create new LDKs \lstinline{Shift} and \lstinline{Return} as the replacements of Python's \lstinline{yield from} and \lstinline{return}, respectively, as shown in Listing~\ref{Shift} and Listing~\ref{Return}. We don't use the native Scala keyword \lstinline{return} because it lacks the ability of ``lifting'' values like Python \lstinline{return} does in generators.
-
-\begin{lstlisting}[caption={The definition of \lstinline{Shift} LDK},label={Shift}]
-case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) extends Keyword[Shift[Domain, Value], Value]
-\end{lstlisting}
-
-\begin{lstlisting}[caption={The definition of \lstinline{Return} LDK},label={Return}]
-case class Return[A](returnValue: A) extends Keyword[Return[A], Nothing]
-\end{lstlisting}
-
-As described in Section~\ref{Adaptive library-defined keywords}, we had split the LDK declaration (i.e. a subtype of \lstinline{Keyword}) from its implementation (i.e. a \lstinline{Dsl} type class instance), the following type class instances is required to compile Listing~\ref{returnableGenerator}:
-
-\begin{enumerate}
-  \item \lstinline{Dsl[Yield[String], Stream[String], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{finalGenerator})
-  \label{DslYield}
-
-  \item \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], String]} \\ (required by \lstinline{!Shift} in \lstinline{finalGenerator})
-  \label{DslShift}
-  
-  \item \lstinline{Dsl[Yield[String], Continuation[Stream[String], Int], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{returnableGenerator})
-  \label{DslYieldContinuation}
-  
-  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} in \lstinline{returnableGenerator})
-  \label{DslReturn}
-\end{enumerate}
-
-As we had introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{Dsl} instance \ref{DslYield} can be resolved as \lstinline{yieldDsl[Stirng, String]} from the type class instance defined in Listing~\ref{Yield-generator-instance}. \lstinline{Dsl} instance \ref{DslShift} should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}.
-
-\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to underlying \lstinline{continuation}},label={shiftDsl}]
-implicit def shiftDsl[Domain, Value] =
-  new Dsl[Shift[Domain, Value], Domain, Value] {
-    def cpsApply(keyword: Shift[Domain, Value], handler: Value => Domain) =
-      keyword.continuation(handler)
-  }
-\end{lstlisting}
-
-\lstinline{Dsl} instance \ref{DslYieldContinuation} should allow registering a callback \lstinline{handler} and then return a new continuation, whose return type is \lstinline{Stream[String]}. Thus, the \lstinline{Yield[String]} keyword can be performed inside the newly created continuation, by the existing \lstinline{Dsl} instance \lstinline{yieldDsl[String, String]}. The extracted value \lstinline{v} and final handler \lstinline{k} is then passed to \lstinline{handler} to continue the execution of rest program, as shown in Listing~\ref{yieldContinuationDsl}.
-
-\begin{lstlisting}[caption={The derived \lstinline{Dsl} instance for \lstinline{Yield} LDK, which can be used in a \lstinline{Continuation}},label={yieldContinuationDsl}]
-implicit def yieldContinuationDsl = {
-  new Dsl[Yield[String], Continuation[Stream[String], Int], Unit] {
-    def cpsApply(keyword: Yield[String], handler: Unit => Continuation[Stream[String], Int]): Continuation[Stream[String], Int] = { k =>
-      val v = !keyword
-      handler(v)(k)
-    }
-  }
-}
-\end{lstlisting}
-
-As described in Section~\ref{Implementation}, \lstinline{!keyword} will be desugared to \lstinline[mathescape=true]|keyword.cpsApply { v => $\hdots$ }|, which is equivalent to \lstinline[mathescape=true]|yieldDsl[String, String].cpsApply(keyword, { v => $\hdots$ })| after inlining \lstinline{Keyword.cpsApply}. Therefore, \lstinline{yieldContinuationDsl} can be considered as a derived \lstinline{Dsl} instance of implicitly resolved \lstinline{yieldDsl}.
-
-The implementation of \lstinline{yieldContinuationDsl} can be generalized to any other LDKs, because \lstinline{yieldContinuationDsl} does not touch any internal state of \lstinline{Yield} except passing \lstinline{Yield} to \lstinline{yieldDsl}. Any instance of \lstinline{Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value]} can be derived from \lstinline{Dsl[Keyword, LeftDomain, Value]} as shown in Listing~\ref{derivedContinuationDsl}.
-
-\begin{lstlisting}[caption={The generic derived \lstinline{Dsl} instance for any LDK, which can be used in a \lstinline{Continuation}},label={derivedContinuationDsl}]
-implicit def derivedContinuationDsl[Keyword, LeftDomain, RightDomain, Value](
-  implicit restDsl: Dsl[Keyword, LeftDomain, Value]
-) = {
-  new Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value] {
-    def cpsApply(keyword: Keyword, handler: Value => Continuation[LeftDomain, RightDomain]): Continuation[LeftDomain, RightDomain] = { k =>
-      restDsl.cpsApply(keyword, { v =>
-        handler(v)(k)
-      })
-    }
-  }
-}
-\end{lstlisting}
-
-Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{derivedContinuationDsl(yieldDsl)}.
-
-
-Similarly, since a \lstinline{!Return} LDK immediately returns from the current function, the implementation of \lstinline{Dsl} instance for \lstinline{!Return} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}. \lstinline{Dsl} instance \ref{DslReturn} can be resolved as \lstinline{derivedContinuationDsl(returnDsl)}.
-
-\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Return} LDK, to skip the registered callback function},label={returnDsl}]
-implicit def returnDsl[A] =
-  new Dsl[Return[A], A, Nothing] {
-    def cpsApply(keyword: Return[A], handler: Nothing => A) =
-      keyword.returnValue
-  }
-\end{lstlisting}
-
-\lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. We will present another example of creating extensible effects with the help of \lstinline{Dsl} derivation in Section~\ref{Multiple mutable states}.
 
 \section{Use cases}
 
@@ -693,11 +553,221 @@ Our solution is conciser than the solution with Scala Continuations, because:
   \item No explicit type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
 \end{enumerate*}
 
+\subsection{The underscore trick}\label{The underscore trick}
+
+As described in Section~\ref{Implementation}, our compiler plug-ins automatically perform \lstinline{reset} control operation for every function. However, a complex continuation is usually executed across multiple functions, which requires an approach to prevent the automatically performed \lstinline{reset} control operation.
+
+We will propose two approaches to resolve the problem. The first solution is called ``underscore trick'', which will be discussed in this section. Another solution is automatically derived \lstinline{Return} LDK, which will be described in Section~\ref{Composable delimited continuation}.
+
+For example, in addition to \lstinline{yield}, Python generators also allow the \lstinline{return} and \lstinline{yield from} keywords. A generator that contains both \lstinline{yield} and \lstinline{return} keywords can be invoked by \lstinline{yield from} in another generator. The elements \lstinline{yield}ed by the former generator will be added into the latter generator, and the return value of the former generator can be used in the latter generator, too. An example of \lstinline{return} and \lstinline{yield from} is shown in Listing~\ref{returnable_generator}.
+
+\begin{lstlisting}[language=Python,style=Python3,caption={Use \lstinline{yield from} and \lstinline{return} in Python generators},label={returnable_generator}]
+
+def returnable_generator() -> Generator[str, None, int]:
+  yield 'inside returnable_generator'
+  return 1
+
+def generator_test() -> Iterator[str]:
+  yield 'before returnable_generator'
+  v = yield from returnable_generator()
+  yield 'after returnable_generator'
+  yield f'the return value of returnable_generator is {v}'
+
+# Output:
+#   before returnable_generator
+#   inside returnable_generator
+#   after returnable_generator
+#   the return value of returnable_generator is 1
+print(*generator_test(), sep='\n')
+\end{lstlisting}
+
+Unlike generators introduced in Section~\ref{Implementing LDKs as ordinary delimited continuations}, \lstinline{returnable_generator} has an additional ability of returning values, thus its return type becomes to \lstinline{Generator[str, None, int]}, where \lstinline{str} is the iterator element type and \lstinline{int} is the type to return \footnote{Note that the declared return type and the type to return are different in Python generators. In other words, the \lstinline{return} keyword in Python ``lifts'' the plain value to a \lstinline{Generator}.}.
+
+When porting \lstinline{return} and \lstinline{yield from} to Scala, the return type should indicate both the element type and the type to return, thus \lstinline{Stream} is not applicable for return type any more. We can instead use the return type \lstinline{Continuation[Stream[String], Int]}, as shown in Listing~\ref{returnableGenerator}. It accepts a callback function \lstinline{k}, which can handle the \lstinline{Int} value being returned and resume the rest program in \lstinline{generatorTest}.
+
+\begin{lstlisting}[caption={Returning an additional value in LDK-based generators},label={returnableGenerator}]
+def returnableGenerator(): Continuation[Stream[String], Int] = { k =>
+  !Yield("inside returnableGenerator")
+  k(1)
+}
+
+def generatorTest(): Stream[String] = {
+  !Yield("before returnableGenerator")
+  val v = !Shift(returnableGenerator())
+  !Yield("after returnableGenerator")
+  !Yield(s"the return value of returnableGenerator is $v")
+  Stream.empty
+}
+
+generatorTest.foreach(println)
+\end{lstlisting}
+
+As we had renamed \lstinline{apply} to \lstinline{cpsApply} in the CPS-transformation plug-in as described in Section~\ref{Implementation},  an additional \lstinline{Shift} LDK is required in \lstinline{generatorTest} to perform the continuation\footnote{There is an implicit conversion from \lstinline{Continuation} to \lstinline{Shift} LDK in \textit{Dsl.scala}, thus the explicit \lstinline{Shift()} call can be omitted. We keep the explicit instantiation of \lstinline{Shift} in this paper for clarity.}. It can be considered as the LDK-based replacement of Python's \lstinline{yield from} keyword, which is defined as Listing~\ref{Shift}.
+
+\begin{lstlisting}[caption={The definition of \lstinline{Shift} LDK},label={Shift}]
+case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) extends Keyword[Shift[Domain, Value], Value]
+\end{lstlisting}
+
+As described in Section~\ref{Adaptive library-defined keywords}, we had split the LDK declaration (i.e. a subtype of \lstinline{Keyword}) from its implementation (i.e. a \lstinline{Dsl} type class instance), a \lstinline{Dsl} type class instance of \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], Int]} is required to perform \lstinline{!Shift} in the domain of \lstinline{Stream[String]}. The implementation should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}.
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to underlying \lstinline{continuation}},label={shiftDsl}]
+implicit def shiftDsl[Domain, Value] =
+  new Dsl[Shift[Domain, Value], Domain, Value] {
+    def cpsApply(keyword: Shift[Domain, Value], handler: Value => Domain) =
+      keyword.continuation(handler)
+  }
+\end{lstlisting}
+
+The \lstinline{Shift} LDK can be considered as a simple wrapper of \lstinline{Continuation} that forward \lstinline{cpsApply} calls to the underlying \lstinline{continuation}.
+
+Unlike Java or C++, a Scala code block can have its value $r$, which is the last statement in the block. A closure like $\{ k \Rightarrow p; k(r) \}$ can be rewritten as $\{ k \Rightarrow k \{ p; r \} \}$, and finally simplified as $\_ \{ p; r \}$ with the help of Scala's placeholder syntax. As a result, the \lstinline{returnableGenerator} function in Listing~\ref{returnableGenerator} can be simplified as Listing~\ref{returnableGenerator-underscore}.
+
+\begin{lstlisting}[caption={Returning an additional value in LDK-based generators, written in the underscore trick},label={returnableGenerator-underscore}]
+def returnableGenerator(): Continuation[Stream[String], Int] = _ {
+  !Yield("inside returnableGenerator")
+  1
+}
+\end{lstlisting}
+
+Semantically, the automatically performed \lstinline{reset} control operator is prevented by appending a single underscore character in front of the method body. We call this usage of the underscore character the ``underscore trick''.
+
+\subsection{\lstinline{Dsl} Derivation}\label{Composable delimited continuation}
+
+Another solution to allow continuations to cross multiple functions is \lstinline{Dsl} Derivation.
+
+In Section~\ref{Adaptive library-defined keywords}, we have present how to create an LDK for different domains, interpreted by different implementations of \lstinline{Dsl} type class instances. In this section, we will discuss derived \lstinline{Dsl} type class instances for an LDK, available in derived domains.
+
+A derived domain means a domain whose type signature contains another domain, and a derived \lstinline{Dsl} means a \lstinline{Dsl} whose implementation internally invokes another \lstinline{Dsl}. The domain \lstinline{Continuation[Stream[String], Int]}, which we used in Section~\ref{The underscore trick} can be considered as a derived domain of \lstinline{Stream[String]}, and a derived \lstinline{Dsl} should be able to ``lift'' the domain \lstinline{Stream[String]} to \lstinline{Continuation[Stream[String], Int]}, without manually creation of closures in the ``underscore trick''.
+
+The need of derived domains and \lstinline{Dsl}s usually comes when introducing a new LDK to an unsupported domain \footnote{Monad transformers and effect handlers are alternative approaches to \lstinline{Dsl} derivation, which will be discussed in Section~\ref{Monad transformers} and Section~\ref{Effect handlers}.}.
+
+For example, the \lstinline{return} in Python can early return a function, as shown in Listing~\ref{early_generator}.
+
+\begin{lstlisting}[language=Python,style=Python3,caption={Use \lstinline{yield from} and \lstinline{return} in Python generators},label={early_generator}]
+def early_generator(early_return: bool) -> Generator[str, None, int]:
+  yield 'inside early_generator'
+  if early_return:
+    yield 'early return'
+    return 1
+  yield 'normal return'
+  return 0
+
+def early_generator_test() -> Iterator[str]:
+  yield 'before early_generator'
+  v = yield from early_generator(True)
+  yield 'after early_generator'
+  yield f'the return value of early_generator is {v}'
+
+# Output:
+#   before early_generator
+#   inside early_generator
+#   early return
+#   after early_generator
+#   the return value of early_generator is 1
+print(*early_generator_test(), sep='\n')
+\end{lstlisting}
+
+Since the ability of early return is impossible to be implemented in the ``underscore trick'', we defined a new \lstinline{Return} LDK to port Python \lstinline{return} to Scala, as shown in Listing~\ref{Return} and Listing~\ref{earlyGenerator}. Note that native Scala keyword \lstinline{return} is not applicable here, because it lacks the ability of ``lifting'' values like Python \lstinline{return} does in generators.
+
+
+\begin{lstlisting}[caption={The definition of \lstinline{Return} LDK},label={Return}]
+case class Return[A](returnValue: A) extends Keyword[Return[A], Nothing]
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Use \lstinline{Shift} and \lstinline{Return} in LDK-based generators},label={earlyGenerator}]
+def earlyGenerator(earlyReturn: Boolean): Continuation[Stream[String], Int] = {
+  !Yield("inside earlyGenerator")
+  if (earlyReturn) {
+    !Yield("early return")
+    !Return(1)
+  }
+  !Yield("normal return")
+  !Return(0)
+}
+
+def earlyGeneratorTest(): Stream[String] = {
+  !Yield("before earlyGenerator")
+  val v = !Shift(earlyGenerator(true))
+  !Yield("after earlyGenerator")
+  !Yield(s"the return value of earlyGenerator is $v")
+  Stream.empty
+}
+
+earlyGeneratorTest.foreach(println)
+\end{lstlisting}
+
+Since we don't manually creating the closure of the \lstinline{Continuation}, the return type of \lstinline{earlyGenerator} becomes \lstinline{Continuation[Stream[String], Int]}, which requires some \lstinline{Dsl} instances that we had not been defined. We list the type class instances required to compile Listing~\ref{earlyGenerator} below:
+
+\begin{enumerate}
+  \item \lstinline{Dsl[Yield[String], Stream[String], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{earlyGeneratorTest})
+  \label{DslYield}
+
+  \item \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], Int]} \\ (required by \lstinline{!Shift} in \lstinline{earlyGeneratorTest})
+  \label{DslShift}
+  
+  \item \lstinline{Dsl[Yield[String], Continuation[Stream[String], Int], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{earlyGenerator})
+  \label{DslYieldContinuation}
+  
+  \item \lstinline{Dsl[Return[Int], Continuation[Stream[String], Int], Nothing]} \\ (required by \lstinline{!Return} in \lstinline{earlyGenerator})
+  \label{DslReturn}
+\end{enumerate}
+
+As discussed in Section~\ref{The underscore trick}, \lstinline{Dsl} instance \ref{DslYield} and \ref{DslShift} can be resolved by \lstinline{yieldDsl} and \lstinline{shiftDsl}, respectively.
+
+\lstinline{Dsl} instance \ref{DslYieldContinuation} and \lstinline{Dsl} instance \ref{DslReturn} are derived \lstinline{Dsl}s.
+
+\lstinline{Dsl} instance \ref{DslYieldContinuation} should allow registering a callback \lstinline{handler} and then return a new continuation, whose return type is \lstinline{Stream[String]}. Thus, the \lstinline{Yield[String]} keyword can be performed inside the newly created continuation, by the existing \lstinline{Dsl} instance \lstinline{yieldDsl[String, String]}. The extracted value \lstinline{v} and final handler \lstinline{k} is then passed to \lstinline{handler} to continue the execution of rest program, as shown in Listing~\ref{yieldContinuationDsl}.
+
+\begin{lstlisting}[caption={The derived \lstinline{Dsl} instance for \lstinline{Yield} LDK, which can be used in a \lstinline{Continuation}},label={yieldContinuationDsl}]
+implicit def yieldContinuationDsl = {
+  new Dsl[Yield[String], Continuation[Stream[String], Int], Unit] {
+    def cpsApply(keyword: Yield[String], handler: Unit => Continuation[Stream[String], Int]): Continuation[Stream[String], Int] = { k =>
+      val v = !keyword
+      handler(v)(k)
+    }
+  }
+}
+\end{lstlisting}
+
+As described in Section~\ref{Implementation}, \lstinline{!keyword} will be desugared to \lstinline[mathescape=true]|keyword.cpsApply { v => $\hdots$ }|, which is equivalent to \lstinline[mathescape=true]|yieldDsl[String, String].cpsApply(keyword, { v => $\hdots$ })| after inlining \lstinline{Keyword.cpsApply}. Therefore, \lstinline{yieldContinuationDsl} can be considered as a derived \lstinline{Dsl} instance of implicitly resolved \lstinline{yieldDsl}.
+
+The implementation of \lstinline{yieldContinuationDsl} can be generalized to any other LDKs, because \lstinline{yieldContinuationDsl} does not touch any internal state of \lstinline{Yield} except passing \lstinline{Yield} to \lstinline{yieldDsl}. Any instance of \lstinline{Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value]} can be derived from \lstinline{Dsl[Keyword, LeftDomain, Value]} as shown in Listing~\ref{derivedContinuationDsl}.
+
+\begin{lstlisting}[caption={The generic derived \lstinline{Dsl} instance for any LDK, which can be used in a \lstinline{Continuation}},label={derivedContinuationDsl}]
+implicit def derivedContinuationDsl[Keyword, LeftDomain, RightDomain, Value](
+  implicit restDsl: Dsl[Keyword, LeftDomain, Value]
+) = {
+  new Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value] {
+    def cpsApply(keyword: Keyword, handler: Value => Continuation[LeftDomain, RightDomain]): Continuation[LeftDomain, RightDomain] = { k =>
+      restDsl.cpsApply(keyword, { v =>
+        handler(v)(k)
+      })
+    }
+  }
+}
+\end{lstlisting}
+
+Now the required \lstinline{Dsl} instance \ref{DslYieldContinuation} can be resolved from either \lstinline{yieldContinuationDsl}, or, more generically, \lstinline{derivedContinuationDsl(yieldDsl)}.
+
+
+Similarly, since a \lstinline{!Return} LDK immediately returns from the current function, the implementation of \lstinline{Dsl} instance for \lstinline{!Return} should skip the rest part of the function, which is captured as a callback function passed to \lstinline{cpsApply}, as shown in Listing~\ref{returnDsl}. \lstinline{Dsl} instance \ref{DslReturn} can be resolved as \lstinline{derivedContinuationDsl(returnDsl)}.
+
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Return} LDK, to skip the registered callback function},label={returnDsl}]
+implicit def returnDsl[A] =
+  new Dsl[Return[A], A, Nothing] {
+    def cpsApply(keyword: Return[A], handler: Nothing => A) =
+      keyword.returnValue
+  }
+\end{lstlisting}
+
+\lstinline{Dsl} derivation enables heterogeneous LDKs in one function, whose return type is composed from the required domain of those LDKs. We will present another example of creating extensible effects with the help of \lstinline{Dsl} derivation in Section~\ref{Multiple mutable states}.
+
 \subsection{Mutable states}
 
 Purely functional programming languages usually do not support first-class mutable variables. In those languages, mutable states can be implemented in state monads. In this section, we will present an alternative approach based on LDK to simulate mutable variable in a pure language \footnote{Scala is an impure language, but we don't use Scala's native \lstinline{var} or other impure features when simulating mutable states, therefore, our approach can be ported to Haskell or other pure languages as described in Section~\ref{Haskell implementation}.}. Unlike state monads, our LDK-based approach is more straightforward, and supports multiple mutable states without manually lifting.
 
 \subsubsection{Single mutable state}
+
 We use unary function as the domain of mutable state. The parameter of the unary function can be read from \lstinline{Get} LDK, and changed by \lstinline{Put} LDK, which are defined in Listing~\ref{Get} and Listing~\ref{Put}, respectively.
 
 \begin{lstlisting}[caption={The definition of \lstinline{Get} LDK},label={Get}]
@@ -781,9 +851,108 @@ new Dsl[Keyword, State => Domain, Value] {
 
 By combining \lstinline{getDsl} and \lstinline{derivedFunction1Dsl} together, the Scala compiler automatically searches matched type in the curried function when resolving the implicit \lstinline{Dsl} instance for a \lstinline{Get} LDK. For example, \lstinline{!Get[Vector[Any]]()} reads the third parameter of the \lstinline{formatter}. It will be translated to \lstinline[mathescape=true]|Get[Vector[Any]]().cpsApply { _ => $\hdots$ }|, where the \lstinline{cpsApply} call requires an instance of type \lstinline{Dsl[Get[Vector[Any]], Double => Int => Vector[Any] => String, Vector[Any]]}, which can resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(getDsl))}. Similarly, the \lstinline{Dsl} instance for reading the first parameter and the second parameter can be resolved as \lstinline{getDsl} and \lstinline{derivedFunction1Dsl(getDsl)}, respectively.
 
-Derived \lstinline{Dsl} instance for \lstinline{Put} and \lstinline{Return} can be resolved similarly. Since all the \lstinline{!Put} LDK in \lstinline{formatter} write the third parameter, their \lstinline{Dsl} instances can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(putDsl))}; the \lstinline{Dsl} instance for \lstinline{!Return} can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(derivedFunction1Dsl(returnDsl)))}.
+Derived \lstinline{Dsl} instance for \lstinline{Put} and \lstinline{Return} can be resolved similarly. Since all the \lstinline{!Put} LDK in \lstinline{formatter} write the third parameter, their \lstinline{Dsl} instances can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(putDsl))}.
+
+Similarly, The \lstinline{Dsl} instance for \lstinline{!Return} can be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(derivedFunction1Dsl(returnDsl)))}.
 
 Now we had demonstrated a simple and straightforward solution for the feature of multiple mutable states, with the help of nested \lstinline{Dsl} derivation. Alternate approaches of multiple mutable states will be discussed in Section~\ref{Monad transformers} and Section~\ref{Effect handlers}.
+
+
+\subsection{Asynchronous programming}
+
+With the help of \lstinline{Dsl} derivation, a complex DSL can be composed of simple features. For example, we provided a type alias \lstinline{Task} for asynchronous programming, which supports the features of tail call optimization and exception handling. Each of the feature corresponds to a part the type signature, as shown in Listing~\ref{Task}.
+
+\begin{lstlisting}[caption={The definition of asynchronous \lstinline{Task}},label={Task}]
+type Task[A] = Continuation[Continuation[TailRec[Unit], Throwable], A]
+\end{lstlisting}
+
+We did not ``reinvent the wheel'' for those features, instead, \lstinline{scala.util.control.TailCalls.TailRec} is used for tail call optimization, and \lstinline{scala.Throwable} is used to represent the internal exceptional state.
+
+In Section~\ref{An asynchronous HTTP client}, we will present how to create an asynchronous HTTP client from \lstinline{Task}; in  Section~\ref{Parallel execution}, we will introduce the usage of \lstinline{Task[Seq[A]]}, which collects the results of multiple tasks into a \lstinline{Seq}, either executed in parallel or sequentially.
+
+\subsubsection{An asynchronous HTTP client}\label{An asynchronous HTTP client}
+
+% For example, Suppose Dave is creating an HTTP client. He can implement the HTTP protocol in the \lstinline{Task} domain shown in Listing \ref{daveHttpClient}.
+
+\begin{lstlisting}[caption={Dave's HTTP client},label={httpClient}]
+def readAll(channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
+  if (destination.remaining > 0) {
+    val numberOfBytesRead: Int = !Read(channel, destination)
+    numberOfBytesRead match {
+      case -1 =>
+      case _  => !readAll(channel, destination)
+    }
+  } else {
+    throw new IOException("The response is too big to read.")
+  }
+}
+
+def writeAll[Domain](channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
+  while (destination.remaining > 0) {
+    !Write(channel, destination)
+  }
+  !Return(());
+}
+
+def daveHttpClient(url: URL): Task[String] = _ {
+  val socket = AsynchronousSocketChannel.open()
+  try {
+    val port = if (url.getPort == -1) 80 else url.getPort
+    val address = new InetSocketAddress(url.getHost, port)
+    !AsynchronousIo.Connect(socket, address)
+    val request = ByteBuffer.wrap(s"GET ${url.getPath} HTTP/1.1\r\nHost:${url.getHost}\r\nConnection:Close\r\n\r\n".getBytes)
+    !writeAll(socket, request)
+    val response = ByteBuffer.allocate(100000)
+    !readAll(socket, response)
+    response.flip()
+    io.Codec.UTF8.decoder.decode(response).toString
+  } finally {
+    socket.close()
+  }
+}
+\end{lstlisting}
+
+\subsubsection{Parallel execution}\label{Parallel execution}
+
+
+
+
+
+% Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{dsl.keywords.AsynchronousIo}, working with \lstinline{dsl.task.Task} domain.
+
+% In this example, Dave imported \lstinline{implicitShift}, which is an implicit conversion, which automatically converts \lstinline{Task} or other CPS functions to \lstinline{Shift} LDKs. Therefore, \lstinline{!Shift(writeAll(...))} becomes unnecessary, in favor of \lstinline{!writeAll(...)} .
+
+% The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
+
+% \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
+% val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
+% fileContent should startWith("HTTP/1.1 200 OK")
+% \end{lstlisting}
+
+
+% Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flow are executed in parallel, similar to the POSIX \lstinline{fork} system call.
+
+% Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow in parallel (Listing \ref{usingDaveHttpClientInParallel}).
+
+% \begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
+% import dsl.keywords.Fork
+% val Urls = Seq(
+%   new URL("http://ftp.debian.org/debian/README.CD-manufacture"),
+%   new URL("http://ftp.debian.org/debian/README")
+% )
+% def parallelTask: Task[Seq[String]] = Task.join {
+%   val url: URL = !Fork(Urls)
+%   !daveHttpClient(url)
+% }
+
+% val Seq(fileContent0, fileContent1) = parallelTask.blockingAwait
+% fileContent0 should startWith("HTTP/1.1 200 OK")
+% fileContent1 should startWith("HTTP/1.1 200 OK")
+% \end{lstlisting}
+
+% In addition to \lstinline{Fork}, we also provide the \lstinline{Each} LDK, whose type signature is identical with \lstinline{Fork}, to sequentially execute tasks. If Dave replaces the \lstinline{Fork} to \lstinline{Each}, those URLs will be fetched in sequentially. Other usage of \lstinline{Each} LDK will be introduced in Section \ref{Monadic programming}.
+
+% The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See section \ref{Benchmark} for the performance benchmark between \lstinline{dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
 
 \section{Benchmarks}\label{Benchmarks}
 
@@ -1065,90 +1234,6 @@ Now we had demonstrated a simple and straightforward solution for the feature of
 
 % What is interesting is that our library-defined keywords are more like first-class features than compiler-defined keywords. Despite the fact that Python 3.5, C\# and ECMAScript do not support automatic resource management, they also do not support using both \lstinline[language=Python,style=Python3]{yield} and \lstinline[language=Python,style=Python3]{await} in one function, even when \lstinline[language=Python,style=Python3]{yield} and \lstinline[language=Python,style=Python3]{await} are supported respectively, and Python 3.6 needs a special implementation of Asynchronous Generators \cite{pep525} to use both \lstinline[language=Python,style=Python3]{yield} and \lstinline[language=Python,style=Python3]{await}, while our library-defined keywords can collaborate with arbitrary other LDKs by composing extra domains on the return type.
 
-% \subsection{Fork / join in asynchronous programming}
-
-% We provided a type alias \lstinline{type Task[A] = TailRec[Unit] !! Throwable !!  A} for asynchronous programming.
-
-% For example, Suppose Dave is creating an HTTP client. He can implement the HTTP protocol in the \lstinline{Task} domain shown in Listing \ref{daveHttpClient}.
-
-% \begin{lstlisting}[caption={Dave's HTTP client},label={daveHttpClient}]
-% import dsl.task._
-% import dsl.keywords._, Shift.implicitShift, AsynchronousIo._
-% import java.io._
-% import java.net._
-% import java.nio._, channels._
-
-% def readAll(channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
-%   if (destination.remaining > 0) {
-%     val numberOfBytesRead: Int = !Read(channel, destination)
-%     numberOfBytesRead match {
-%       case -1 =>
-%       case _  => !readAll(channel, destination)
-%     }
-%   } else {
-%     throw new IOException("The response is too big to read.")
-%   }
-% }
-
-% def writeAll[Domain](channel: AsynchronousByteChannel, destination: ByteBuffer): Task[Unit] = _ {
-%   while (destination.remaining > 0) {
-%     !Write(channel, destination)
-%   }
-% }
-
-% def daveHttpClient(url: URL): Task[String] = _ {
-%   val socket = AsynchronousSocketChannel.open()
-%   try {
-%     val port = if (url.getPort == -1) 80 else url.getPort
-%     val address = new InetSocketAddress(url.getHost, port)
-%     !AsynchronousIo.Connect(socket, address)
-%     val request = ByteBuffer.wrap(s"GET ${url.getPath} HTTP/1.1\r\nHost:${url.getHost}\r\nConnection:Close\r\n\r\n".getBytes)
-%     !writeAll(socket, request)
-%     val response = ByteBuffer.allocate(100000)
-%     !readAll(socket, response)
-%     response.flip()
-%     io.Codec.UTF8.decoder.decode(response).toString
-%   } finally {
-%     socket.close()
-%   }
-% }
-% \end{lstlisting}
-
-% Dave's HTTP client is built from \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs. Those are asynchronous Java NIO.2 IO operators defined in \lstinline{dsl.keywords.AsynchronousIo}, working with \lstinline{dsl.task.Task} domain.
-
-% In this example, Dave imported \lstinline{implicitShift}, which is an implicit conversion, which automatically converts \lstinline{Task} or other CPS functions to \lstinline{Shift} LDKs. Therefore, \lstinline{!Shift(writeAll(...))} becomes unnecessary, in favor of \lstinline{!writeAll(...)} .
-
-% The usage of \lstinline{Task} can be similar to previous examples in Section \ref{Using multiple LDKs at once}, but we also provide \lstinline{blockingAwait} and some other utilities under the implicit class \lstinline{dsl.task.TaskOps} to ease the usage (Listing \ref{usingDaveHttpClient}).
-
-% \begin{lstlisting}[caption={Using Dave's http client},label={usingDaveHttpClient}]
-% val fileContent = daveHttpClient(new URL("http://ftp.debian.org/debian/")).blockingAwait
-% fileContent should startWith("HTTP/1.1 200 OK")
-% \end{lstlisting}
-
-
-% Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flow are executed in parallel, similar to the POSIX \lstinline{fork} system call.
-
-% Dave puts \lstinline{Fork} inside a \lstinline{join} block, which collects the result of each forked control flow in parallel (Listing \ref{usingDaveHttpClientInParallel}).
-
-% \begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingDaveHttpClientInParallel}]
-% import dsl.keywords.Fork
-% val Urls = Seq(
-%   new URL("http://ftp.debian.org/debian/README.CD-manufacture"),
-%   new URL("http://ftp.debian.org/debian/README")
-% )
-% def parallelTask: Task[Seq[String]] = Task.join {
-%   val url: URL = !Fork(Urls)
-%   !daveHttpClient(url)
-% }
-
-% val Seq(fileContent0, fileContent1) = parallelTask.blockingAwait
-% fileContent0 should startWith("HTTP/1.1 200 OK")
-% fileContent1 should startWith("HTTP/1.1 200 OK")
-% \end{lstlisting}
-
-% In addition to \lstinline{Fork}, we also provide the \lstinline{Each} LDK, whose type signature is identical with \lstinline{Fork}, to sequentially execute tasks. If Dave replaces the \lstinline{Fork} to \lstinline{Each}, those URLs will be fetched in sequentially. Other usage of \lstinline{Each} LDK will be introduced in Section \ref{Monadic programming}.
-
-% The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See section \ref{Benchmark} for the performance benchmark between \lstinline{dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
 
 % \subsection{Monadic programming}\label{Monadic programming}
 
