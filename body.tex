@@ -489,6 +489,7 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
     \item The \lstinline{AsynchronousIo} LDKs for perform I/O on an asynchronous channel.
     \item The \lstinline{Yield} LDK for generating lazy streams, similar to the \lstinline[language=Python,style=Python3]{yield} keyword in C\#, Python and JavaScript.
     \item The \lstinline{Each} LDK for traversing each element of a collection, similar to \lstinline{for}, \lstinline{yield} keywords for Scala collections.
+    \item The \lstinline{Continue} LDK to skip an element in a LDK-based collection comprehension, similar to \lstinline{continue} keyword in many languages.
     \item The \lstinline{Fork} LDK for duplicating current thread, similar to the \lstinline{fork} system call in POSIX.
     \item The \lstinline{AutoClose} LDK to automatically close resources when exiting a scope, similar to the destructor feature in C++.
     \item The \lstinline{Monadic} LDK for creating Scalaz \cite{kenji2017scalaz} or Cats \cite{typelevel2017cats} monadic control flow, similar to the !-notation in Idris\cite{brady2013idris}.
@@ -928,8 +929,7 @@ httpResponse should startWith("HTTP/1.1 200 OK")
 
 Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flow are executed in parallel, similar to the POSIX \lstinline{fork} system call, as shown in Listing~\ref{usingHttpClientInParallel}.
 
-\begin{lstlisting}[caption={Using Dave's http client in parallel},label={usingHttpClientInParallel}]
-import dsl.keywords.Fork
+\begin{lstlisting}[caption={Using HTTP client in parallel},label={usingHttpClientInParallel}]
 val Urls = Seq(
   new URL("http://example.com/"),
   new URL("http://example.org/")
@@ -947,9 +947,81 @@ assert(fileContent1.startsWith("HTTP/1.1 200 OK"))
 
 Since the execution of \lstinline{parallelTask} is forked, the two URLs would be downloaded in parallel. The results are then collected into a \lstinline{Task} of \lstinline{Seq} at the \lstinline{!Return} LDK.
 
-In addition to \lstinline{Fork}, we also provide the \lstinline{Each} LDK, whose type signature is identical with \lstinline{Fork}, to sequentially execute tasks. If the \lstinline{!Fork} is replaced to \lstinline{!Each}, those URLs will be fetched sequentially. Other usage of \lstinline{Each} LDK will be introduced in Section~\ref{Scala's for-comprehension}.
-
 The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See Section~\ref{Benchmarks} for the performance benchmark between \lstinline{dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+
+\subsection{Collection comprehensions}\label{Collection comprehensions}
+
+List comprehension or array comprehension is a feature to create a collection based on some other collections, which has been implemented as first class feature in many programming languages including Scala. In this section, we will present the \lstinline{Each} LDK, which allows collection comprehensions for arbitrary collection types. Unlike other first class comprehension, our LDK-based collection comprehension collaborates with other LDKs, thus allowing creating complex code of effects or actions in collection comprehensions.
+
+\subsubsection{Heterogeneous comprehensions}\label{Heterogeneous comprehensions}
+
+Suppose we want to calculate all composite numbers below $n$, the program can be written in Scala's native \lstinline{for}-comprehension as shown in Listing~\ref{compositeNumbersBelow-for}.
+
+\begin{lstlisting}[caption={Calculating all composite numbers below $n$ with \lstinline{for}-comprehension},label={compositeNumbersBelow-for}]
+def compositeNumbersBelow(n: Int) = (for {
+  i <- 2 until math.ceil(math.sqrt(n)).toInt
+  j <- 2 * i until n by i
+} yield j).to[Set]
+\end{lstlisting}
+
+The \lstinline{compositeNumbersBelow} can be ported to LDK-based collection comprehension with the following steps:
+
+\begin{enumerate}
+  \item Replacing the \lstinline{for} keyword and the trailing \lstinline[mathescape=true]{.to[$CollectionType$]} by the heading $CollectionType$.
+  \item Replacing every \lstinline[mathescape=true]{$p$ <- $e$} by \lstinline[mathescape=true]{val $p$ = !Each($e$)}.
+  \item Moving the value to \lstinline{yield} to the last expression position of the comprehension block.
+\end{enumerate}
+
+Therefore, Listing~\ref{compositeNumbersBelow-for} can be rewrite to Listing~\ref{compositeNumbersBelow} with the help of the \lstinline{Each} LDK, or Listing~\ref{compositeNumbersBelow-simplified} after removing the temporary variable \lstinline{j}.
+
+\begin{lstlisting}[caption={Calculating all composite numbers below $n$ with \lstinline{Each} LDK},label={compositeNumbersBelow}]
+def compositeNumbersBelow(n: Int): Set[Int] = Set {
+  val i = !Each(2 until math.ceil(math.sqrt(n)).toInt)
+  val j = !Each(2 * i until n by i)
+  j
+}
+\end{lstlisting}
+
+
+\begin{lstlisting}[caption={Calculating all composite numbers below $n$ with \lstinline{Each} LDK, the simplicied version},label={compositeNumbersBelow-simplified}]
+def compositeNumbersBelow(n: Int): Set[Int] = Set {
+  val i = !Each(2 until math.ceil(math.sqrt(n)).toInt)
+  !Each(2 * i until n by i)
+}
+\end{lstlisting}
+
+Note that the created collection is a \lstinline{Set}, which is different from the type of source collection. In addition, our LDK-base collection comprehension allows passing heterogeneous collection types to \lstinline{!Each}. You can even create code like \lstinline{def f = Seq(!Each(Array('L', 'D', 'K')) * !Each(Set(1, 2)))}.
+
+\subsubsection{Filters}
+
+We also provides the \lstinline{Continue} LDK to skip an element from the source collections. It provides the similar feature to the \lstinline{if} clause in Scala's native \lstinline{for}-comprehension. An example of using \lstinline{Continue} LDK to calculate prime numbers is shown in Listing~\ref{primeNumbersBelow}.
+
+\begin{lstlisting}[caption={Calculating all prime numbers below $n$ with \lstinline{Each} and \lstinline{Continue} LDK},label={primeNumbersBelow}]
+def primeNumbersBelow(maxNumber: Int) = Seq {
+  val compositeNumbers = compositeNumbersBelow(maxNumber)
+  val i = !Each(2 until maxNumber)
+  if (compositeNumbers(i)) !Continue
+  i
+}
+\end{lstlisting}
+
+\subsubsection{Asynchronous comprehensions}\label{Asynchronous comprehensions}
+
+The \lstinline{Each} LDK can be used in \lstinline{Task} of collections as well, with the help of \lstinline{Dsl} derivation. The usage of \lstinline{Each} is very similar to the \lstinline{Fork} keyword. The only difference is that \lstinline{Each} sequentially executes tasks while \lstinline{Fork} executes tasks in parallel. For example, if we replace the \lstinline{Fork} LDK in Listing~\ref{usingHttpClientInParallel} by \lstinline{Each}, those URLs will be fetched sequentially, as shown in Listing~\ref{usingHttpClientSequentially}.
+
+\begin{lstlisting}[caption={Using HTTP client in parallel},label={usingHttpClientSequentially}]
+def sequentialTask: Task[Seq[String]] = {
+  val url: URL = !Each(Urls)
+  val content: String = !httpClient(url)
+  !Return(content)
+}
+\end{lstlisting}
+
+\subsubsection{Generator comprehensions}\label{Generator comprehensions}
+
+Since \lstinline{Each} works in any function that returns a collection, it can be used in \lstinline{Stream} functions. 
+
+TODO
 
 \section{Benchmarks}\label{Benchmarks}
 
@@ -1199,11 +1271,6 @@ In this section, we will present the benchmark result for computing the Cartesia
 As we did in sum benchmarks, we created some benchmarks to maximize the performance for Cartesian product. Our benchmarks create the Cartesian product from \lstinline{traverseM} for Scala Future, Cats Effect, Scalaz Concurrent and Monix Tasks. Listing \ref{RawCartesianPruduct.future} shows the benchmark code for Scala Future.
 
 \begin{lstlisting}[float=htbp,caption={Cartesian product for Scala Future, based on Scalaz's \lstinline{traverseM}},label={RawCartesianPruduct.future}]
-import scala.concurrent.Future
-import scalaz.std.list._
-import scalaz.std.scalaFuture._
-import scalaz.syntax.all._
-
 def cellTask(taskX: Future[Int], taskY: Future[Int]): Future[List[Int]] = async {
   List(await(taskX), await(taskY))
 }
@@ -1263,10 +1330,6 @@ Monix tasks, Cats Effects and ordinary CPS functions created from \textit{Dsl.sc
 We then refactored the benchmarks to direct style DSLs. Listing \ref{CartesianProduct.future} is the code for Scala Future, written in \lstinline{ListT} monad transformer provided by Scalaz. The benchmarks for Monix tasks, Scalaz Concurrent are also rewritten in the similar style.
 
 \begin{lstlisting}[float=htbp,caption={Cartesian product for Scala Future, based on \lstinline{ListT} transformer},label={CartesianProduct.future}]
-import scalaz.syntax.all._
-import scalaz.ListT
-import scalaz.std.scalaFuture._
-
 def listTask(rows: List[Future[Int]], columns: List[Future[Int]]): Future[List[Int]] = {
   for {
     taskX <- ListT(Future.successful(rows))
