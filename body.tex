@@ -988,21 +988,33 @@ def compositeNumbersBelow(n: Int): Set[Int] = Set {
   val i = !Each(2 until math.ceil(math.sqrt(n)).toInt)
   !Each(2 * i until n by i)
 }
+
+// Output: Set(10, 14, 6, 9, 12, 8, 4)
+println(compositeNumbersBelow(15))
 \end{lstlisting}
 
-Note that the created collection is a \lstinline{Set}, which is different from the type of source collection. In addition, our LDK-base collection comprehension allows passing heterogeneous collection types to \lstinline{!Each}. You can even create code like \lstinline{def f = Seq(!Each(Array('L', 'D', 'K')) * !Each(Set(1, 2)))}.
+Note that \lstinline{compositeNumbersBelow} creates a \lstinline{Set}, which is different from the type of source collection. Our LDK-base collection comprehension allows heterogeneous source collection types. Even other collection-like types, including \lstinline{Array} and \lstinline{String}, are supported, as shown in Listing~\ref{heterogeneous}.
 
+\begin{lstlisting}[caption={LDK-based heterogeneous collection comprehension based on \lstinline{Array} and \lstinline{String}},label={heterogeneous}]
+def heterogeneous = List { !Each(Array("foo", "bar", "baz")) + !Each("LDK") }
+
+// Output: List(fooL, fooD, fooK, barL, barD, barK, bazL, bazD, bazK)
+println(heterogeneous)
+\end{lstlisting}
 \subsubsection{Filters}
 
 We also provides the \lstinline{Continue} LDK to skip an element from the source collections. It provides the similar feature to the \lstinline{if} clause in Scala's native \lstinline{for}-comprehension. An example of using \lstinline{Continue} LDK to calculate prime numbers is shown in Listing~\ref{primeNumbersBelow}.
 
 \begin{lstlisting}[caption={Calculating all prime numbers below $n$ with \lstinline{Each} and \lstinline{Continue} LDK},label={primeNumbersBelow}]
-def primeNumbersBelow(maxNumber: Int) = Seq {
+def primeNumbersBelow(maxNumber: Int) = List {
   val compositeNumbers = compositeNumbersBelow(maxNumber)
   val i = !Each(2 until maxNumber)
   if (compositeNumbers(i)) !Continue
   i
 }
+
+// Output: List(2, 3, 5, 7, 11, 13)
+println(primeNumbersBelow(15))
 \end{lstlisting}
 
 \subsubsection{Asynchronous comprehensions}\label{Asynchronous comprehensions}
@@ -1019,9 +1031,25 @@ def sequentialTask: Task[Seq[String]] = {
 
 \subsubsection{Generator comprehensions}\label{Generator comprehensions}
 
-Since \lstinline{Each} works in any function that returns a collection, it can be used in \lstinline{Stream} functions. 
+Since an \lstinline{Each} LDK works in any function that returns a collection, it can be also used in a \lstinline{Stream} function, which support the \lstinline{Yield} LDK as well. As a result, generator and collection comprehension can be used together.
 
-TODO
+Suppose we are creating a function to prepare flags for invoking the \texttt{gcc} command line tool. Given a source file and a list of include paths, it should return a \lstinline{Stream} of the command line.
+It can be implemented from the \lstinline{Yield}, \lstinline{Each} and \lstinline{Continue} as shown in Listing~\ref{gccFlagBuilder}.
+
+\begin{lstlisting}[caption={Build a command-line by using generator and collection comprehension together},label={gccFlagBuilder}]
+def gccFlagBuilder(sourceFile: String, includes: String*): Stream[String] = {
+  !Yield("gcc")
+  !Yield("-c")
+  !Yield(sourceFile)
+  val include = !Each(includes)
+  !Yield("-I")
+  !Yield(include)
+  !Continue
+}
+
+// Output: List(gcc, -c, main.c, -I, lib1/include, -I, lib2/include)
+println(gccFlagBuilder("main.c", "lib1/include", "lib2/include").toList)
+\end{lstlisting}
 
 \section{Benchmarks}\label{Benchmarks}
 
