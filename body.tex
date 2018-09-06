@@ -1400,23 +1400,6 @@ This time, Cats Effects are not benchmarked due to lack of \lstinline{ListT} in 
 
 Despite the trivial manual lift calls in \lstinline{for} comprehension, the monad transformer approach causes terrible computational performance in comparison to manually called \lstinline{traverseM}. In contrast, the performance of \textit{Dsl.scala} even got improved when \lstinline{cellTask} is inlined into \lstinline{listTask}.
 
-\section{Discussion}
-
-% In Section~\ref{Basic concepts}, we have demonstrated \lstinline{Dsl} type class can be considered as both superset of monads and delimited continuations. The additional ability of allowing
-
-% % Straightforwardness, Extensibility and 
-% In this section, we will present the ho
-
-% address the straightforwardness, extensibility and performance problem when handle effects with monads, 
-
-% However, monads are not extensible, 
-
-% Since monads are often used to handle effects, in this section, we will present how to handle effects in \lstinline{Dsl.scala}.
-
-
-
-% % In this 
-
 
 \section{Related works}
 
@@ -1424,15 +1407,42 @@ Previous works related to \textit{Dsl.scala} can be divided into two categories:
 
 \begin{description}
   \item[Generic protocols of control flow operators] are motivated the goal similar to our \lstinline{Dsl} type class. Operators of specific purposes can be implemented in a same protocol, therefore, users of those operators can use a common interface for different domains. Monads and delimited continuations are notable examples of such protocols.
-  \item[Direct style notations] are similar syntaxes to our name-based CPS transformation. Those notations allow users to write sequential imperative style code that will be translated to CPS or monadic style that consist of nested closures. \lstinline{async}/\lstinline{await}, \lstinline{reset}/\lstinline{shift}, \lstinline{for}-comprehension, \lstinline{do}-notation and !-notation are notable examples of such notations.
+  \item[Direct style notations] are similar syntaxes to our name-based CPS transformation. Those notations allow users to write sequential imperative style code that will be translated to CPS or monadic style that consist of nested closures. \lstinline{yield}, \lstinline{async} / \lstinline{await}, \lstinline{reset} / \lstinline{shift}, \lstinline{for}-comprehension, \lstinline{do}-notation and !-notation are notable examples of such notations.
 \end{description}
 
-\subsection{\lstinline{yield} generators}
+\subsection{Generators}
+
+A generator is a special procedure to lazily produce values, which can be consumed as an iterator. Early implementation of generators are shipped in Alphard \cite{shaw1977abstraction} and CLU \cite{liskov1977abstraction}, and the feature is now available in  Python, ECMAScript, C\#, and many other programming languages.
+
+The execution of the generator will be paused at the \lstinline{yield} statement, and can be resumed when the consumer side of the generator asks for the next value. The \lstinline{yield} statement can be considered as a direct style notation for producer / consumer pattern.
+
+Generators can be used for creating embedded DSLs:
+
+\begin{itemize}
+  \item The producer side \lstinline{yield}s command objects of the DSL.
+  \item The consumer side interprets these produced command objects to actually perform operations.
+\end{itemize}
+
+However, the type of the command object is a protocol between the consumer and the producer, and must be determined in advance, therefore, the number of available commands in a generator is fixed. A generator DSL is not composable with other generator DSLs. In addition, generators are traditionally implemented as a first class feature by the compiler, thus they do not collaborate with other direct style notation unless modifying the compiler.
+
+Unlike first class generators, our LDK-based generator TODO
+
+% For example
+
+
+% there are two problems when creating DSLs with generators.
+
+% \begin{enumarate}
+%   \item generators are traditionally implemented by the compiler. Therefore, generators are not able to 
+% \end{enumarate}
+
+% Unfortunately, the consumer side and the producer side 
+
 
 \subsection{\lstinline{async}/\lstinline{await}}
 
-\subsection{\lstinline{reset}/\lstinline{await}}
-
+\subsection{Delimited continuations}
+% \lstinline{reset}/\lstinline{shift}
 \subsection{\lstinline{for}-comprehension}\label{for-comprehension}
 
 \subsection{\lstinline{do}-notation}
@@ -1451,7 +1461,22 @@ Previous works related to \textit{Dsl.scala} can be divided into two categories:
 
 \subsection{Haskell implementation}\label{Haskell implementation}
 
-\section{Conclusion}
+\section{Discussion and Conclusion}
+
+% In Section~\ref{Basic concepts}, we have demonstrated \lstinline{Dsl} type class can be considered as both superset of monads and delimited continuations. The additional ability of allowing
+
+% % Straightforwardness, Extensibility and 
+% In this section, we will present the ho
+
+% address the straightforwardness, extensibility and performance problem when handle effects with monads, 
+
+% However, monads are not extensible, 
+
+% Since monads are often used to handle effects, in this section, we will present how to handle effects in \lstinline{Dsl.scala}.
+
+
+
+
 
 
 % % , with some minor differences.
