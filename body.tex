@@ -2,11 +2,11 @@
 
 Traditionally, the capacity of a general purpose language can be extended to special domain by creating an embedded DSL (Domain-Specific Language) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
 
-Instead of reinventing the whole set of control flow for each DSL, a more general approach is implementing a minimal interface for control flow for each domain, while other control flow operations are derived from the interface, shared between different domains. In Haskell and other functional programming language, monads are used as the generic interface of control flow \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} notation \cite{jones1998haskell} or \lstinline{for} comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
+Instead of reinventing the whole set of control flow for each DSL, a more general approach is designing a common protocol for control flow operators of all domains. In Haskell and other functional programming language, monads are used as the generic protocol of control flow operators \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{bind} and \lstinline{point} functions in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} notation \cite{jones1998haskell} or \lstinline{for} comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
 An idea to avoid incompatible domain-specific control flow is converting direct style control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of direct style control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary direct style code.
 
-Another generic interface of control flow is delimited continuation, which is known as the mother of all monads \cite{piponi2008mother}, where specific control flow in specific domain can be supported by specific answer types of continuations \cite{asai2007polymorphic}. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert direct style control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special answer type for akka actors. Unlike reinvented control flow in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple direct style control flow along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
+Another generic protocol of control flow is delimited continuation, which is known as the mother of all monads \cite{piponi2008mother}, where specific control flow in specific domain can be supported by specific answer types of continuations \cite{asai2007polymorphic}. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert direct style control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special answer type for akka actors. Unlike reinvented control flow in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple direct style control flow along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
 All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
@@ -132,7 +132,7 @@ All code examples except Section~\ref{Haskell implementation} are written in our
 
 Our goal is making the control flow of a programming language be extensible. In this section, we will introducing the \lstinline{Dsl} type class and the concept of name-based CPS transformation from the process of porting some first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries, in the approach introduced in this paper. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in Section~\ref{Haskell implementation}}. But, in other languages, they used to be implemented as  compiler built-in first-class features.
 
-The rest part of this section is organized as following. Firstly, in Section~\ref{Implementing LDKs as ordinary delimited continuations} and Section~\ref{CPS transformation}, we will present how to \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in Section~\ref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a Monad-like interface. Finally, in Section~\ref{Collaborative library-defined keywords} and Section~\ref{Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} type class to unifying all the previous approaches, and in addition, allowing using multiple LDKs like \lstinline{yield} and \lstinline{await} together.
+The rest parts of this section is organized as following. Firstly, in Section~\ref{Implementing LDKs as ordinary delimited continuations} and Section~\ref{CPS transformation}, we will present how to \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in Section~\ref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a Monad-like interface. Finally, in Section~\ref{Collaborative library-defined keywords} and Section~\ref{Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} type class to unifying all the previous approaches, and in addition, allowing using multiple LDKs like \lstinline{yield} and \lstinline{await} together.
 
 \subsection{Implementing LDKs as ordinary delimited continuations}\label{Implementing LDKs as ordinary delimited continuations}
 
@@ -501,7 +501,7 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
 
 \section{Use cases}
 
-We will some use cases of name based CPS transformation and LDK or  in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
+We will some use cases of name-based CPS transformation and LDK or  in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
 
 \subsection{Resolve the \lstinline{printf} problem, trivially}\label{resolve-printf-problem}
 
@@ -551,7 +551,7 @@ def f3 = StringPlaceholder.cpsApply { tmp0 =>
 Our solution is conciser than the solution with Scala Continuations, because:
 \begin{enumerate*}
   \item No explicit \lstinline{reset} is required, as reset is automatically added by the \lstinline{ResetEverywhere} plug-in.
-  \item No explicit type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
+  \item No explicit \lstinline{@cps} type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
 \end{enumerate*}
 
 \subsection{The underscore trick}\label{The underscore trick}
@@ -1053,7 +1053,7 @@ println(gccFlagBuilder("main.c", "lib1/include", "lib2/include").toList)
 
 \section{Benchmarks}\label{Benchmarks}
 
-We created some benchmarks to evaluate the computational performance of code generated by our compiler plug-in for LDKs, especially, we are interesting how !-notation and other direct style DSL affect the performance in an effect system that support both asynchronous and synchronous effects.
+We created some benchmarks to evaluate the computational performance of code generated by our compiler plug-in for LDKs, especially, we are interesting how our name-based CPS transformation and other direct style DSL affect the performance in an effect system that support both asynchronous and synchronous effects.
 
 Our benchmarks measured the performance of LDKs in the \lstinline{Task} domain mentioned in Section~\ref{Asynchronous programming}, along with other combination of effect system with direct style DSL, listed in Table \ref{combination}:
 
@@ -1061,7 +1061,7 @@ Our benchmarks measured the performance of LDKs in the \lstinline{Task} domain m
   \begin{tabular}{l|l}
     Effect System & direct style DSL \\
     \hline
-    The \texttt{Task} LDK & !-notation provided by \textit{Dsl.scala} \\
+    The \texttt{Task} LDK & name-based CPS transformation provided by \textit{Dsl.scala} \\
     Scala Future \cite{haller2012sip} & Scala Async \cite{haller2013sip} \\
     Scala Continuation library \cite{rompf2009implementing} & Scala Continuation compiler plug-in \\
     Monix tasks \cite{nedelcu2017monix} & \texttt{for} comprehension \\
@@ -1286,7 +1286,7 @@ Note that reduced sum can be implemented in either left-associated recursion or 
   \label{RightAssociatedSum}
 \end{table}
 
-The result demonstrates that the !-notation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark. The \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for} comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for} comprehension is always underoptimized due to the inefficient \lstinline{map}.
+The result demonstrates that the name-based CPS transformation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark. The \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for} comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for} comprehension is always underoptimized due to the inefficient \lstinline{map}.
 
 \subsection{The performance of collection manipulation in effect systems}
 
@@ -1420,23 +1420,32 @@ Despite the trivial manual lift calls in \lstinline{for} comprehension, the mona
 
 \section{Related works}
 
+Previous works related to \textit{Dsl.scala} can be divided into two categories:% \textit{direct style syntax} and \textit{generic protocol of control flow operators}.
+
+\begin{description}
+  \item[Generic protocols of control flow operators] are motivated the goal similar to our \lstinline{Dsl} type class. Operators of specific purposes can be implemented in a same protocol, therefore, users of those operators can use a common interface for different domains. Monads and delimited continuations are notable examples of such protocols.
+  \item[Direct style notations] are similar syntaxes to our name-based CPS transformation. Those notations allow users to write sequential imperative style code that will be translated to CPS or monadic style that consist of nested closures. \lstinline{async}/\lstinline{await}, \lstinline{reset}/\lstinline{shift}, \lstinline{for}-comprehension, \lstinline{do}-notation and !-notation are notable examples of such notations.
+\end{description}
+
+\subsection{\lstinline{yield} generators}
+
+\subsection{\lstinline{async}/\lstinline{await}}
+
+\subsection{\lstinline{reset}/\lstinline{await}}
+
+\subsection{\lstinline{for}-comprehension}\label{for-comprehension}
+
+\subsection{\lstinline{do}-notation}
+
+\subsection{!-notation}
+
 \subsection{Monads}\label{Monads}
 
-\subsubsection{Free and Freer monads}\label{Effect handlers}
+\subsubsection{Free and Freer monads}\label{Free and Freer monads}
 
 \subsubsection{Monad transformers}\label{Monad transformers}
 
 \subsubsection{Effect handlers}\label{Effect handlers}
-
-\subsection{Haskell's do-notation}
-
-\subsection{Idris's !-notation}
-
-\subsection{Scala's for-comprehension}\label{Scala's for-comprehension}
-
-\subsection{Scala async}
-
-\subsection{Scala continuations}
 
 \section{Future work}
 
