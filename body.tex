@@ -1355,7 +1355,7 @@ The benchmark result is shown in Table \ref{RawCartesianProduct}.
 
 Monix tasks, Cats Effects and ordinary CPS functions created from \textit{Dsl.scala} are still the top 3 scored effect systems.
 
-\subsubsection{The performance of collection manipulation in direct style DSLs}
+\subsubsection{The performance of collection manipulation in direct style DSLs}\label{The performance of collection manipulation in direct style DSLs}
 
 We then refactored the benchmarks to direct style DSLs. Listing \ref{CartesianProduct.future} is the code for Scala Future, written in \lstinline{ListT} monad transformer provided by Scalaz. The benchmarks for Monix tasks, Scalaz Concurrent are also rewritten in the similar style.
 
@@ -1472,8 +1472,8 @@ Monad transformers are monads derived from other monads. ``Monad transformer'' i
     M [ texlbl="An operation" ];
     T1 [ texlbl="Lifted monadic value of the operation" ];
     T2 [ texlbl="The output monadic value" ];
-    M -> T1 [ label="transformed lift", texlbl="transformed \texttt{lift}" ];
-    T1 -> T2 [ label="transformed bind", texlbl="transformed \lstinline{bind}" ];
+    M -> T1 [ label="derived lift", texlbl="derived \texttt{lift}" ];
+    T1 -> T2 [ label="derived bind", texlbl="derived \lstinline{bind}" ];
   }
   \end{dot2tex}
   \caption{What's happened when executing an operation in a monad transformer block}
@@ -1482,7 +1482,7 @@ Monad transformers are monads derived from other monads. ``Monad transformer'' i
 
 However, as \cite{kiselyov2013extensible} pointed out, lifting a atomic type to a deeply nested transformed monadic data type is inefficient. The overhead of lifting a single operation increases as long as the number of nested monad transformers increases.
 
-The inefficient lifting can be avoided in our \lstinline{Dsl} derivation approach, since an LDK already represents an operation for any compatible domains.
+The inefficient lifting can be avoided in our \lstinline{Dsl} derivation approach, since an LDK already represents an operation for any compatible domains. Only the \lstinline{cpsApply} method in the \lstinline{Dsl} type class is derived, as shown in Figure~\ref{dsl-operation}. The performance improvement is also observed in the benchmark at Section~\ref{The performance of collection manipulation in direct style DSLs}.
 
 \begin{figure}[h t b p]
   \begin{dot2tex}[dot]
@@ -1492,7 +1492,7 @@ The inefficient lifting can be avoided in our \lstinline{Dsl} derivation approac
 
     M [ texlbl="An operation as a LDK" ];
     T [ texlbl="The output domain value" ];
-    M -> T [ label="transformed cpsApply", texlbl="transformed \texttt{cpsApply}" ];
+    M -> T [ label="derived cpsApply", texlbl="derived \texttt{cpsApply}" ];
   }
   \end{dot2tex}
   \caption{What's happened when executing an operation in a \lstinline{Dsl} block}
