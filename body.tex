@@ -1476,7 +1476,7 @@ Monad transformers are monads derived from other monads. ``Monad transformer'' i
     T1 -> T2 [ label="derived bind", texlbl="derived \lstinline{bind}" ];
   }
   \end{dot2tex}
-  \caption{What's happened when executing an operation in a monad transformer block}
+  \caption{Performing an operation in a monad transformer block}
   \label{monad-transformer-lift}
 \end{figure}
 
@@ -1495,14 +1495,13 @@ The inefficient lifting can be avoided in our \lstinline{Dsl} derivation approac
     M -> T [ label="derived cpsApply", texlbl="derived \texttt{cpsApply}" ];
   }
   \end{dot2tex}
-  \caption{What's happened when executing an operation in a \lstinline{Dsl} block}
+  \caption{Performing an operation in a \lstinline{Dsl} block}
   \label{dsl-operation}
 \end{figure}
 
-
-\subsubsection{Free and Freer monads}\label{Free and Freer monads}
-
 \subsubsection{Effect handlers}\label{Effect handlers}
+
+Effect handlers is an alternative approach to monad transformers.
 
 \section{Future work}
 
