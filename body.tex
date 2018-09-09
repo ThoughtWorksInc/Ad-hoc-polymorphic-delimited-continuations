@@ -1459,18 +1459,18 @@ There are other workarounds to overcome the limitation of monads, which will be 
 
 \subsubsection{Monad transformers}\label{Monad transformers}
 
-Monad transformers are monads derived from other monads. ``Monad transformer'' is to ``monad'' as ``\lstinline{Dsl} derivation'' is to ``\lstinline{Dsl}''. The monadic data type can be composed at type level as a chain of monad transformers, so that various operations can be lifted to the same nested transformed monadic data type, which can be then used in a single monadic code block. TODO: 画一个图表示monad transformer的问题。
+Monad transformers are monads derived from other monads. ``Monad transformer'' is to ``monad'' as ``\lstinline{Dsl} derivation'' is to ``\lstinline{Dsl}''. The monadic data type can be composed at type level as a chain of monad transformers, so that various operations can be lifted to the same nested transformed monadic data type, which can be then used in a single monadic code block. TODO: ??????????????????monad transformer????????????
 
 \begin{figure}[h t b p]
-  \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.78,transform shape}]
+  \begin{dot2tex}[dot,autosize,graphstyle={scale=0.78,transform shape}]
   digraph {
-    rankdir=LR
+    rankdir=TB
 
-    M [ label="Atomic operation" ]
-    T1 [ label="Nested transformed monadic data type"]
-    T2 [ label="Nested transformed monadic data type"]
-    M -> T1 [ label="lift" ]
-    T1 -> T2 [ label="transformed bind operator" ]
+    M [ label="An atomic operation" ]
+    T1 [ label="The transformed monadic data type"]
+    T2 [ label="The transformed monadic data type"]
+    M -> T1 [ label="transformed \lstinline{lift}" ]
+    T1 -> T2 [ label="transformed \texttt{bind}" ]
   }
   \end{dot2tex}
 
