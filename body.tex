@@ -29,6 +29,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.78,transform shape}]
   digraph {
   	rankdir=LR
+    shape=rect
 
   	subgraph cluster_code_block {
       graph [ label="\textrm{a code block that returns an \lstinline{Eff}}" ]
@@ -62,6 +63,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   \begin{dot2tex}[dot,mathmode,autosize,graphstyle={transform shape}]
   digraph {
   	rankdir=LR
+    shape=rect
 
   	subgraph cluster_code_block {
       graph [ label="\textrm{a code block that returns any \texttt{Domain}}" ]
@@ -1449,38 +1451,53 @@ A monad is a generic protocol of control flow operators used in Haskell and many
 
 Since a monad is specified to a certain monadic data type, the capacity of a monadic data type is predetermined, unless introducing an additional abstract layer of interpreters. For example, the \lstinline{List} monad in Haskell \footnote{A Haskell \lstinline{List} is lazy by default, equivalent to a Scala \lstinline{Stream}.} can be used to create a \lstinline{List} based on \lstinline{List}s, but it cannot create a \lstinline{List} based on other collection types, nor creating a \lstinline{List} from a generator.
 
-In our LDK approach, we remove the limitation of monads by separating the concept of monadic value into two distinguishing concepts: domain and keyword. A domain is the return type of its enclosing function, and a keyword is an operation on the domain. Therefore, a collection can be created from other collections or generators with different LDKs as discussed in Section~\ref{Heterogeneous comprehensions} and Section~\ref{Generator comprehensions}. 
+In our LDK approach, we remove the limitation of monads by separating the concept of monadic value into two distinguishing concepts: domain and library-defined keyword (LDK). A domain is the return type of its enclosing function, and an LDK is an operation on the domain. Therefore, a collection can be created from other collections or generators with different LDKs as discussed in Section~\ref{Heterogeneous comprehensions} and Section~\ref{Generator comprehensions}. 
 
-In addition, separating domains and keywords can lead simpler implementation. Our \lstinline{Get} and \lstinline{Put} can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in Section~\ref{Single mutable state}. Also, the implementation of \lstinline{Cont} monad is more complicated, as it creates one more additional closure for each \lstinline{bind} operator, while the \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no more closure, as discussed in Section~\ref{The underscore trick}.
+In addition, separating domains and LDKs can lead simpler implementation. Our \lstinline{Get} and \lstinline{Put} can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in Section~\ref{Single mutable state}. Also, the implementation of \lstinline{Cont} monad is more complicated, as it creates one more additional closure for each \lstinline{bind} operator, while the \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no more closure, as discussed in Section~\ref{The underscore trick}.
 
-In fact, the \lstinline{bind} operator of a monad is equivalent to a special case of \lstinline{Dsl} when the domain type and the keyword type are the same, and the \lstinline[language=Haskell,deletekeywords={return}]{return} operator of a monad can be considered another special case of \lstinline{Dsl} when the keyword is a \lstinline{Return}, which holds a plain value of the domain type.
+In fact, the \lstinline{bind} operator of a monad is equivalent to a special case of \lstinline{Dsl} when the domain type and the LDK type are the same, and the \lstinline[language=Haskell,deletekeywords={return}]{return} operator of a monad can be considered another special case of \lstinline{Dsl} when the LDK is a \lstinline{Return}, which holds a plain value of the domain type.
 
 There are other workarounds to overcome the limitation of monads, which will be discussed in Section~\ref{Monad transformers}, Section~\ref{Free and Freer monads} and Section~\ref{Effect handlers}.
 
 \subsubsection{Monad transformers}\label{Monad transformers}
 
-Monad transformers are monads derived from other monads. ``Monad transformer'' is to ``monad'' as ``\lstinline{Dsl} derivation'' is to ``\lstinline{Dsl}''. The monadic data type can be composed at type level as a chain of monad transformers, so that various operations can be lifted to the same nested transformed monadic data type, which can be then used in a single monadic code block. TODO: ??????????????????monad transformer????????????
+Monad transformers are monads derived from other monads. ``Monad transformer'' is to ``monad'' as ``\lstinline{Dsl} derivation'' is to ``\lstinline{Dsl}''. The monadic data type can be composed at type level as a chain of monad transformers, so that various operations can be lifted to the same nested transformed monadic data type, which can be then used in a single monadic code block. The process to perform an operation in a monad transformer is shown in Figure~\ref{monad-transformer-lift}.
 
 \begin{figure}[h t b p]
-  \begin{dot2tex}[dot,autosize,graphstyle={scale=0.78,transform shape}]
+  \begin{dot2tex}[dot]
   digraph {
     rankdir=TB
+    node [ shape=rect ]
 
-    M [ label="An atomic operation" ]
-    T1 [ label="The transformed monadic data type"]
-    T2 [ label="The transformed monadic data type"]
-    M -> T1 [ label="transformed \lstinline{lift}" ]
-    T1 -> T2 [ label="transformed \texttt{bind}" ]
+    M [ texlbl="An operation" ];
+    T1 [ texlbl="Lifted monadic value of the operation" ];
+    T2 [ texlbl="The output monadic value" ];
+    M -> T1 [ label="transformed lift", texlbl="transformed \texttt{lift}" ];
+    T1 -> T2 [ label="transformed bind", texlbl="transformed \lstinline{bind}" ];
   }
   \end{dot2tex}
-
-  \caption{What's happened when executing an atomic operation in a monad transformer}
+  \caption{What's happened when executing an operation in a monad transformer block}
   \label{monad-transformer-lift}
 \end{figure}
 
 However, as \cite{kiselyov2013extensible} pointed out, lifting a atomic type to a deeply nested transformed monadic data type is inefficient. The overhead of lifting a single operation increases as long as the number of nested monad transformers increases.
 
-This is not a problem in our \lstinline{Dsl} derivation approach. 
+The inefficient lifting can be avoided in our \lstinline{Dsl} derivation approach, since an LDK already represents an operation for any compatible domains.
+
+\begin{figure}[h t b p]
+  \begin{dot2tex}[dot]
+  digraph {
+    rankdir=TB
+    node [ shape=rect ]
+
+    M [ texlbl="An operation as a LDK" ];
+    T [ texlbl="The output domain value" ];
+    M -> T [ label="transformed cpsApply", texlbl="transformed \texttt{cpsApply}" ];
+  }
+  \end{dot2tex}
+  \caption{What's happened when executing an operation in a \lstinline{Dsl} block}
+  \label{dsl-operation}
+\end{figure}
 
 
 \subsubsection{Free and Freer monads}\label{Free and Freer monads}
