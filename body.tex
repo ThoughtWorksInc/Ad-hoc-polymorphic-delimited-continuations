@@ -1187,7 +1187,7 @@ The benchmark result is shown in Table \ref{RawSum} (larger score is better):
 
 The \lstinline{Task} alias of continuation-passing style function used with \textit{Dsl.scala} is quite fast. \textit{Dsl.scala}, Monix and Cats Effects score on top 3 positions for either tasks running in the current thread or in a thread pool.
 
-\subsubsection{The performance impact of direct style DSLs}
+\subsubsection{The performance impact of direct style DSLs}\label{The performance impact of direct style DSLs}
 
 In this section, we will present the performance impact when different syntax notations are introduced. For ordinary CPS functions, we added one more !-notation to avoid manually passing the \lstinline{callback} in the previous benchmark (Listing \ref{LeftAssociatedSum.dsl}, \ref{RightAssociatedSum.dsl}). For other effect systems, we refactored the previous sum benchmarks to use Scala Async, Scala Continuation's \lstinline{@cps} annotations, and \lstinline{for} comprehension, respectively (Listing \ref{LeftAssociatedSum.future}, \ref{RightAssociatedSum.future}, \ref{LeftAssociatedSum.scalaContinuation}, \ref{RightAssociatedSum.scalaContinuation}, \ref{LeftAssociatedSum.scalaz}, \ref{RightAssociatedSum.scalaz}).
 
@@ -1486,7 +1486,9 @@ An ordinary delimited continuation is a CPS function whose implementation is pre
 
 \subsection{\lstinline{for}-comprehension}\label{for-comprehension}
 
+\lstinline{for}-comprehension is a Scala language feature, originally used to produce collections. It is a general form of list comprehension. The Scala compiler internally translates \lstinline{for}-comprehension expressions into method calls to \lstinline{map}, \lstinline{flatMap} and \lstinline{withFitler}. The translation is also name-based, therefore, \lstinline{for}-comprehension can be used not only for collection generation, but also as a general direct style notation for asynchronous programming \footnote{\href{https://docs.scala-lang.org/sips/futures-promises.html}{SIP-14 - Futures and Promises}}, resource management \footnote{\href{http://jsuereth.com/scala-arm/}{Scala ARM}}, or creating monadic expression \cite{kenji2017scalaz,typelevel2017cats,twitter2016algebird}.
 
+However, \lstinline{for}-comprehension does not support native Scala control flow statements. Complex imperative procedure is difficult to be expressed in \lstinline{for}-comprehension. In addition, \lstinline{for}-comprehensions always end with a \lstinline{map}, preventing tail call optimization when composing multiple \lstinline{for}-comprehensions, consuming more memory and resulting worse computational performance than manually written \lstinline{flatMap} calls, according to the benchmarks in Section~\ref{The performance impact of direct style DSLs}.
 
 \subsection{\lstinline{do}-notation}\label{do-notation}
 
