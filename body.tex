@@ -1495,6 +1495,8 @@ Delimited continuations operators of \lstinline{shift} and \lstinline{reset} \ci
 
 Our \lstinline{BangNotation} compiler plug-ins described in Section~\ref{Implementation} can be considered as a simplified version of delimited continuations operators, disallowing delimited continuations across multiple functions. Fortunately, this limitation can be overcame by underscore trick as described in Section~\ref{The underscore trick}.
 
+An ordinary delimited continuation is a CPS function whose implementation is predetermined. In contrast, we introduced ad-hoc polymorphic delimited continuation, the \lstinline{Dsl} type class, whose implementation is adaptive to the enclosing domain. TODO
+
 
 \subsection{\lstinline{for}-comprehension}\label{for-comprehension}
 
