@@ -473,13 +473,31 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
 \begin{description}
   \item[The core library] contains the definition of the \lstinline{Dsl} type class and \lstinline{Keyword}, the common super type of LDKs. They are slightly different from the definition in Listing~\ref{Dsl} and Listing~\ref{Keyword}:
   \begin{itemize}
-    \item The \lstinline{apply} method in \lstinline{Dsl} and \lstinline{Keyword} is renamed to \lstinline{cpsApply} in case of name clash, considering the method name \lstinline{apply} has been widely used in existing Scala libraries.
+    \item The \lstinline{apply} method in \lstinline{Dsl} and \lstinline{Keyword} is renamed to \lstinline{cpsApply} in case of name clash as defined in Listing~\ref{Dsl-Keyword}, considering the method name \lstinline{apply} has been widely used in existing Scala libraries.
+
+    \begin{lstlisting}[caption={The definition of \lstinline{Dsl} and \lstinline{Keyword} in \textit{Dsl.scala}, renamed},label={Dsl-Keyword}]
+trait Dsl[-Keyword, Domain, +Value] {
+  def cpsApply(keyword: Keyword, handler: Value => Domain): Domain
+}
+
+trait Keyword[Self, Value] { this: Self =>
+  @shift final def unary_! : Value = ???
+
+  def cpsApply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+    dsl.cpsApply(this, handler)
+  }
+}
+    \end{lstlisting}
+
+
     \item There is an additional dummy method \lstinline{unary_!} annotated as \lstinline{@shift} defined in \lstinline{Keyword}. The \lstinline{unary_!} method (or any other \lstinline{@shift}-annotated methods) will be specially treated by our compiler plug-ins, thought it will be considered as an ordinary method from the point view of type checker when our compiler plug-ins is not enabled. The definition of \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
-  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators, respectively, described by \cite{Danvy89afunctional}.
+  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators \cite{Danvy89afunctional}, respectively.
+  
+  % described by  and \cite{Danvy1990AbstractingC}.
 
-  In addition to block expressions mentioned in Listing~\ref{cps-block}, all other first-class control flows in Scala are transformed to CPS form by the \lstinline{BangNotation} plug-in \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but a group of nested method calls.}.
+  In addition to block expressions mentioned in Listing~\ref{cps-block}, all other first-class control flows in Scala  \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but a group of nested method calls.} are transformed to CPS form by the \lstinline{BangNotation} plug-in in the metacontinuation \cite{Danvy1990AbstractingC} approach.
 
   Unlike other typed delimited continuation implementations, the \lstinline{BangNotation} plug-in performs name-based CPS-transformation. Each !-notation in a transformed function can be converted to an arbitrary \lstinline{cpsApply} method call as long as it accepts a callback function parameter. Type checking for the transformed function will be performed once the transformation is done.
 
@@ -613,7 +631,7 @@ case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) exten
 
 As described in Section~\ref{Adaptive library-defined keywords}, we had split the LDK declaration (i.e. a subtype of \lstinline{Keyword}) from its implementation (i.e. a \lstinline{Dsl} type class instance), a \lstinline{Dsl} type class instance of \lstinline{Dsl[Shift[Stream[String], Int], Stream[String], Int]} is required to perform \lstinline{!Shift} in the domain of \lstinline{Stream[String]}. The implementation should forward \lstinline{cpsApply} call to the underlying \lstinline{continuation} of the \lstinline{Shift} LDK, as shown in Listing~\ref{shiftDsl}.
 
-\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to underlying \lstinline{continuation}},label={shiftDsl}]
+\begin{lstlisting}[caption={The \lstinline{Dsl} instance of \lstinline{Shift} LDK, to forward \lstinline{cpsApply} to the underlying \lstinline{continuation}},label={shiftDsl}]
 implicit def shiftDsl[Domain, Value] =
   new Dsl[Shift[Domain, Value], Domain, Value] {
     def cpsApply(keyword: Shift[Domain, Value], handler: Value => Domain) =
@@ -633,6 +651,42 @@ def returnableGenerator(): Continuation[Stream[String], Int] = _ {
 \end{lstlisting}
 
 Semantically, the automatically performed \lstinline{reset} control operator is prevented by appending a single underscore character in front of the method body. We call this usage of the underscore character the ``underscore trick''.
+
+\subsubsection{Answer type modification}\label{Answer type modification}
+
+``Underscore trick'' is can be used along with any CPS functions, not only monomorphic \lstinline{Continuation} but also polymorphic delimited continuations \cite{asai2007polymorphic}. Polymorphic delimited continuations is a CPS function whose answer type can be modified, i.e. \lstinline{(A => B) => C} where \lstinline{B} and \lstinline{C} differ. We provide a \lstinline{PolymorphicShift} LDK to perform \lstinline{shift} control operator for polymorphic delimited continuations, as defined in Listing~\ref{PolymorphicShift}. Note that \lstinline{PolymorphicShift} is not interpreted by \lstinline{Dsl}, hence it is not ad-hoc polymorphic.
+
+\begin{lstlisting}[caption={The definition of PolymorphicShift},label={PolymorphicShift}]
+final case class PolymorphicShift[A, B, C](cpsApply: (A => B) => C) {
+  @shift def unary_! : A = ???
+}
+
+implicit def implicitPolymorphicShift[A, B, C](cpsApply: (A => B) => C) = PolymorphicShift(cpsApply)  
+\end{lstlisting}
+
+The \lstinline{prefix} problem introduced in \cite{asai2007polymorphic} can be resolved by the ``underscore trick'' along with \lstinline{PolymorphicShift}, as shown in Listing~\ref{prefix}.
+
+\begin{lstlisting}[caption={The solution to \lstinline{prefix} problem by the ``underscore trick''},label={prefix}]
+def visit[A](lst: List[A]): (List[A] => List[A] @reset) => List[List[A]] = _ {
+  lst match {
+    case Nil =>
+      !{ (h: List[A] => List[A]) =>
+        Nil
+      }
+    case a :: rest =>
+      a :: !{ (k: List[A] => List[A] @reset) =>
+        k(Nil) :: k(!visit(rest))
+      }
+  }
+}
+
+def prefix[A](lst: List[A]) = !visit(lst)
+
+// Output: List(List(1), List(1, 2), List(1, 2, 3))
+println(prefix(List(1, 2, 3)))
+\end{lstlisting}
+
+Traditional polymorphic delimited continuations performs CPS transformation across functions. In contrast, with the help of the ``underscore trick'', we achieve the same ability of answer type modification as polymorphic delimited continuations, but did not rewrite ASTs across functions any more.
 
 \subsection{\lstinline{Dsl} Derivation}\label{Dsl derivation}
 
@@ -1408,7 +1462,7 @@ Despite the trivial manual lift calls in \lstinline{for} comprehension, the mona
 Previous works related to \textit{Dsl.scala} can be divided into two categories:% \textit{direct style syntax} and \textit{generic protocol of control flow operators}.
 
 \begin{description}
-  \item[Generic protocols of control flow operators] are motivated the goal similar to our \lstinline{Dsl} type class. Operators of specific purposes can be implemented in a same protocol, therefore, users of those operators can use a common interface for different domains. Monads and delimited continuations are notable examples of such protocols.
+  \item[Generic protocols of control flow operators] are motivated by the goal similar to our \lstinline{Dsl} type class. Operators of specific purposes can be implemented in a same protocol, therefore, users of those operators can use a common interface for different domains. Monads and delimited continuations are notable examples of such protocols.
   \item[Direct style notations] are similar syntaxes to our name-based CPS transformation. Those notations allow users to write sequential imperative style code that will be translated to CPS or monadic style that consist of nested closures. \lstinline{yield}, \lstinline{async} / \lstinline{await}, \lstinline{reset} / \lstinline{shift}, \lstinline{for}-comprehension, \lstinline{do}-notation and !-notation are notable examples of such notations.
 \end{description}
 
@@ -1427,12 +1481,20 @@ Generators can be used for creating eDSLs:
 
 However, the type of the command object is a protocol between the consumer and the producer, and must be determined in advance, therefore, the number of available commands in a generator is fixed. A generator DSL is not composable with other generator DSLs. In addition, generators are traditionally implemented as a first class feature by the compiler, thus they do not collaborate with other direct style notation unless modifying the compiler.
 
-Unlike these first class generators, our LDK-based generators can be used along with other LDKs, including but not limited to \lstinline{Shift} (Section~\ref{The underscore trick}), \lstinline{Return} (Section~\ref{Dsl derivation}), \lstinline{Await} (Section~\ref{Collaborative library-defined keywords}), \lstinline{Each} (Section~\ref{Generator comprehensions}), without modifying the compiler.
+In contrast, our LDK-based generators can be used along with other LDKs, including but not limited to \lstinline{Shift} (Section~\ref{The underscore trick}), \lstinline{Return} (Section~\ref{Dsl derivation}), \lstinline{Await} (Section~\ref{Collaborative library-defined keywords}), \lstinline{Each} (Section~\ref{Generator comprehensions}), without modifying the compiler.
 
-\subsection{\lstinline{async}/\lstinline{await}}
+\subsection{\lstinline{async} and \lstinline{await}}
+
+\lstinline{await} and \lstinline{await} are compiler-defined keywords in Python, ECMAScript, or C\#, to compose multiple asynchronous tasks into one task. Like generators, \lstinline{async} and \lstinline{await} provide a special purpose direct style notation, which does not collaborate with other direct style notations, unless modifying the implementation of the compiler like \cite{pep525} did.
+
+Alternatively, we provide \lstinline{Await} LDK in \textit{Dsl.scala} for asynchronous programming, which collaborates with other LDK as described in Section~\ref{Collaborative library-defined keywords}.
 
 \subsection{Delimited continuations}
-% \lstinline{reset}/\lstinline{shift}
+
+Delimited continuations operators of \lstinline{shift} and \lstinline{reset} \cite{Danvy1990AbstractingC} are direct style notations for performing CPS-transformation. The underlying data structures are either monomorphic \cite{danvy1989functional} or polymorphic \cite{asai2007polymorphic}, which can be considered as a generic protocol of control flow operators.
+
+Our \lstinline{BangNotation} compiler plug-ins described in Section~\ref{Implementation} can be considered as a simplified version of delimited continuations operators, disallowing delimited continuations across multiple functions. Fortunately, this limitation can be overcame by underscore trick as described in Section~\ref{The underscore trick}.
+
 
 \subsection{\lstinline{for}-comprehension}\label{for-comprehension}
 
@@ -1453,19 +1515,14 @@ Since a monad is specified to a certain monadic data type, the capacity of a mon
 
 In our LDK approach, we remove the limitation of monads by separating the concept of monadic value into two distinguishing concepts: domain and library-defined keyword (LDK). A domain is the return type of its enclosing function, and an LDK is an operation on the domain. Therefore, a collection can be created from other collections or generators with different LDKs as discussed in Section~\ref{Heterogeneous comprehensions} and Section~\ref{Generator comprehensions}. 
 
-In addition, separating domains and LDKs can lead simpler implementation. Our \lstinline{Get} and \lstinline{Put} can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in Section~\ref{Single mutable state}. Also, a typical implementation of \lstinline{Cont} monad, as defined in Listing~\ref{contMonad}, is more complicated, as it creates two more additional closures for each \lstinline{bind} operator. In contrast, the \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no closure, as defined in Listing~\ref{shiftDsl}.
+In addition, separating domains and LDKs can lead simpler implementation. Our \lstinline{Get} and \lstinline{Put} can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in Section~\ref{Single mutable state}. Also, a typical implementation of \lstinline{Cont} monad \cite{dyvbig2007monadic}, as defined in (\ref{return_k}) and (\ref{>>=_k}), is more complicated, as it creates $\lambda\kappa.t_1\left(\lambda v.t_2 v\kappa\right)$ and $\lambda v.t_2 v\kappa$, two more additional closures, for each \lstinline{>>=} operator. In contrast, the \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no closure, as defined in Listing~\ref{shiftDsl}.
 
-\begin{lstlisting}[caption={A typical monad instance for continuation},label={contMonad}]
-implicit def contMonad = new Monad[Continuation[R, ?]] {
-  def bind[A, B](fa: Continuation[R, A])(f: A => Continuation[R, B]): Continuation[R, B] = { g =>
-    fa { a =>
-        f(a)(g)
-    }
-  }
-    
-  def point[A](a: A): Continuation[R, A] = _(a)
-}
-\end{lstlisting}
+\begin{align}
+\label{return_k}
+return_k &= \lambda t.\lambda \kappa.\kappa t\\
+\label{>>=_k}
+\texttt{>>=}_k &= \lambda t_1.\lambda t_2.\lambda \kappa.t_1\left(\lambda v.t_2 v\kappa\right)
+\end{align}
 
 In fact, the \lstinline{bind} operator of a monad is equivalent to a special case of \lstinline{Dsl} when the domain type and the LDK type are the same, and the \lstinline[language=Haskell,deletekeywords={return}]{return} operator of a monad can be considered another special case of \lstinline{Dsl} when the LDK is a \lstinline{Return}, which holds a plain value of the domain type.
 
