@@ -19,7 +19,7 @@ This paper proposed a new type class \lstinline{Dsl}, which can be consider as b
 
 \begin{lstlisting}[caption={The definition of \lstinline{Dsl} type class},label={Dsl}]
 trait Dsl[Keyword, Domain, Value] {
-  def apply(keyword: Keyword, handler: Value => Domain): Domain
+  def cpsApply(keyword: Keyword, handler: Value => Domain): Domain
 }
 \end{lstlisting}
 
@@ -293,7 +293,7 @@ def downloadTwoPages() = Future {
 
 Note that both Listing~\ref{downloadTowPages-bang} and Listing~\ref{downloadTowPages-bang-block} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only \lstinline{Continuation}, while the signature of \lstinline{flatMap} differs from \lstinline{Continuation}, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
 
-Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of \lstinline{apply} is. Both delimited continuation \lstinline{Continuation} and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to !-notation in Idris or do-notation with \lstinline{RebindableSyntax} in Haskell.
+Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of those expressions are. Both delimited continuation \lstinline{Continuation} and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to !-notation in Idris or do-notation with \lstinline{RebindableSyntax} in Haskell.
 
 \begin{lstlisting}[mathescape=true, caption={A function with !-notation}, label={bang-block}]
 def f = {
@@ -408,14 +408,18 @@ In previous sections, we had presented two different implementations of \lstinli
 The \lstinline{Dsl} type class as defined in Listing~\ref{Dsl} is usually used along with \lstinline{Keyword} (Listing~\ref{Keyword}), which should be the super type of all adaptive LDKs.
 
 \begin{lstlisting}[caption={\lstinline{Keyword}, the super type of all adaptive LDKs},label={Keyword}]
+
 trait Keyword[Self, Value] { this: Self =>
-  def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
-    dsl.apply(this, handler)
+  def cpsApply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
+    dsl.cpsApply(this, handler)
   }
+
+  def apply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = cpsApply(handler)
+}
 }
 \end{lstlisting}
 
-Every \lstinline{apply} call registers a callback to handle the \lstinline{Value}, and finally returns a \lstinline{Domain}. The keyword's self type (\lstinline{Self}) and the value of the keyword (\lstinline{Value}), defined in sub types of \lstinline{Keyword}. The actually implementation of the keyword varies according to the return type of enclosing function (\lstinline{Domain}), is resolved by the multi-parameter type class \lstinline{Dsl}. For example, the adaptive version of \lstinline{Yield} and \lstinline{Await} can be defined as Listing~\ref{Yield} and Listing~\ref{Await}.
+An \lstinline{apply} call is an alias of \lstinline{cpsApply}, which registers a callback to handle the \lstinline{Value}, and finally returns a \lstinline{Domain}. The keyword's self type (\lstinline{Self}) and the value of the keyword (\lstinline{Value}), defined in sub types of \lstinline{Keyword}. The actually implementation of the keyword varies according to the return type of enclosing function (\lstinline{Domain}), is resolved by the multi-parameter type class \lstinline{Dsl}. For example, the adaptive version of \lstinline{Yield} and \lstinline{Await} can be defined as Listing~\ref{Yield} and Listing~\ref{Await}.
 
 \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
 case class Yield[A](element: A) extends Keyword[Yield[A], Unit]
@@ -430,7 +434,7 @@ When performing !-notation on a \lstinline{Keyword} to produce a \lstinline{Valu
 \begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Yield} for creating generators},label={Yield-generator-instance}]
 implicit def yieldDsl[A, B >: A]: Dsl[Yield[A], Stream[B], Unit] =
   new Dsl[Yield[A], Stream[B], Unit] {
-    def apply(keyword: Yield[A], mapper: Unit => Stream[B]): Stream[B] = {
+    def cpsApply(keyword: Yield[A], mapper: Unit => Stream[B]): Stream[B] = {
       new Stream.Cons(keyword.element, mapper(()))
     }
   }
@@ -439,7 +443,7 @@ implicit def yieldDsl[A, B >: A]: Dsl[Yield[A], Stream[B], Unit] =
 \begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Yield} for creating asynchronous generators},label={Yield-async-generator-instance}]
 implicit def futureYieldDsl[A, B >: A]: Dsl[Yield[A], Stream[Future[B]], Unit] =
   new Dsl[Yield[A], Stream[Future[B]], Unit] {
-    def apply(keyword: Yield[A], handler: Unit => Stream[Future[B]]): Stream[Future[B]] = {
+    def cpsApply(keyword: Yield[A], handler: Unit => Stream[Future[B]]): Stream[Future[B]] = {
       new Stream.Cons(Future.successful(keyword.element), handler(()))
     }
   }
@@ -448,7 +452,7 @@ implicit def futureYieldDsl[A, B >: A]: Dsl[Yield[A], Stream[Future[B]], Unit] =
 \begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Await} for creating asynchronous values},label={Await-future-instance}]
 implicit def awaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], Future[B], A] =
   new Dsl[Await[A], Future[B], A] {
-    def apply(keyword: Await[A], handler: A => Future[B]): Future[B] = {
+    def cpsApply(keyword: Await[A], handler: A => Future[B]): Future[B] = {
       keyword.future.flatMap(handler)
     }
   }
@@ -457,14 +461,14 @@ implicit def awaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], Future
 \begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Await} for creating asynchronous generators},label={Await-async-generator-instance}]
 implicit def streamAwaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], Stream[Future[B]], A] =
   new Dsl[Await[A], Stream[Future[B]], A] {
-    def apply(keyword: Await[A], handler: A => Stream[Future[B]]): Stream[Future[B]] = {
+    def cpsApply(keyword: Await[A], handler: A => Stream[Future[B]]): Stream[Future[B]] = {
       val ff = keyword.future.map(handler)
       new Stream.Cons(ff.flatMap(_.head), result(ff, Duration.Inf).tail)
     }
   }
 \end{lstlisting}
 
-By introducing the type class \lstinline{Dsl}, the \lstinline{apply} calls to \lstinline{Keyword} are ad-hoc polymorphic to the specific domain of the call site. As a result, keywords like \lstinline{Yield} and \lstinline{Await} becomes adaptive.
+By introducing the type class \lstinline{Dsl}, the calls to \lstinline{Keyword} are ad-hoc polymorphic to the specific domain of the call site. As a result, keywords like \lstinline{Yield} and \lstinline{Await} becomes adaptive.
 
 \section{Implementation}\label{Implementation}
 
@@ -473,23 +477,6 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
 \begin{description}
   \item[The core library] contains the definition of the \lstinline{Dsl} type class and \lstinline{Keyword}, the common super type of LDKs. They are slightly different from the definition in Listing~\ref{Dsl} and Listing~\ref{Keyword}:
   \begin{itemize}
-    \item The \lstinline{apply} method in \lstinline{Dsl} and \lstinline{Keyword} is renamed to \lstinline{cpsApply} in case of name clash as defined in Listing~\ref{Dsl-Keyword}, considering the method name \lstinline{apply} has been widely used in existing Scala libraries.
-
-    \begin{lstlisting}[caption={The definition of \lstinline{Dsl} and \lstinline{Keyword} in \textit{Dsl.scala}, renamed},label={Dsl-Keyword}]
-trait Dsl[-Keyword, Domain, +Value] {
-  def cpsApply(keyword: Keyword, handler: Value => Domain): Domain
-}
-
-trait Keyword[Self, Value] { this: Self =>
-  @shift final def unary_! : Value = ???
-
-  def cpsApply[Domain](handler: Value => Domain)(implicit dsl: Dsl[Self, Domain, Value]): Domain = {
-    dsl.cpsApply(this, handler)
-  }
-}
-    \end{lstlisting}
-
-
     \item There is an additional dummy method \lstinline{unary_!} annotated as \lstinline{@shift} defined in \lstinline{Keyword}. The \lstinline{unary_!} method (or any other \lstinline{@shift}-annotated methods) will be specially treated by our compiler plug-ins, thought it will be considered as an ordinary method from the point view of type checker when our compiler plug-ins is not enabled. The definition of \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
@@ -623,7 +610,7 @@ def generatorTest(): Stream[String] = {
 generatorTest.foreach(println)
 \end{lstlisting}
 
-As we had renamed \lstinline{apply} to \lstinline{cpsApply} in the CPS-transformation plug-in as described in Section~\ref{Implementation},  an additional \lstinline{Shift} LDK is required in \lstinline{generatorTest} to perform the continuation\footnote{There is an implicit conversion from \lstinline{Continuation} to \lstinline{Shift} LDK in \textit{Dsl.scala}, thus the explicit \lstinline{Shift()} call can be omitted. We keep the explicit instantiation of \lstinline{Shift} in this section for clarity.}. It can be considered as the LDK-based replacement of Python's \lstinline{yield from} keyword, which is defined as Listing~\ref{Shift}.
+We also creates \lstinline{Shift}, an additional ad-hoc polymorphic LDK used in \lstinline{generatorTest}, to perform the continuation\footnote{There is an implicit conversion from \lstinline{Continuation} to \lstinline{Shift} LDK in \textit{Dsl.scala}, thus the explicit \lstinline{Shift()} call can be omitted. We keep the explicit instantiation of \lstinline{Shift} in this section for clarity.}. It can be considered as the LDK-based replacement of Python's \lstinline{yield from} keyword, which is defined as Listing~\ref{Shift}.
 
 \begin{lstlisting}[caption={The definition of \lstinline{Shift} LDK},label={Shift}]
 case class Shift[Domain, Value](continuation: Continuation[Domain, Value]) extends Keyword[Shift[Domain, Value], Value]
@@ -922,7 +909,7 @@ type Task[A] = TailRec[Unit] !! Throwable] !! A
 
 \lstinline{Task} supports the features of tail call optimization and exception handling. Each feature corresponds to a part the type signature. \lstinline{scala.util.control.TailCalls.TailRec} is used for tail call optimization, and \lstinline{scala.Throwable} is used to represent the internal exceptional state.
 
-We create some derived \lstinline{Dsl}s to handle exceptions, which support domains whose types match the pattern of \lstinline[mathescape=true]{($L_i$ !! $\hdots$ !! $L_0$ !! Throwable !! $R_0$ !! $\hdots$ !! $R_i$)}, and some derived \lstinline{Dsl}s to optimize tail calls as trampolines, which support domains whose types match the pattern of \lstinline[mathescape=true]{(TailRec[$\hdots$] !! $R_0$ !! $\hdots$ !! $R_i$)}, where $L_0 \hdots L_i$ and $R_0 \hdots R_i$ are arbitrary number of types\footnote{Those \lstinline{Dsl}s are implemented in the \lstinline{Dsl} derivation technique described in Section~\ref{Dsl derivation}. Unfortunately, they are too sophisticated to include in this paper. Check the artifact for the complete implementation}. Therefore, \lstinline{Dsl} instances for \lstinline{Task} are composed from these orthogonal features.
+We create some derived \lstinline{Dsl}s to handle exceptions, which support domains whose types match the pattern of \lstinline[mathescape=true]{($L_i$ !! $\hdots$ !! $L_0$ !! Throwable !! $R_0$ !! $\hdots$ !! $R_i$)}, and some derived \lstinline{Dsl}s to optimize tail calls as trampolines, which support domains whose types match the pattern of \lstinline[mathescape=true]{(TailRec[$\hdots$] !! $R_0$ !! $\hdots$ !! $R_i$)}, where $L_0 \hdots L_i$ and $R_0 \hdots R_i$ are arbitrary number of types\footnote{Those \lstinline{Dsl}s are implemented in the \lstinline{Dsl} derivation technique described in Section~\ref{Dsl derivation}. Check the artifact for the complete implementation}. Therefore, \lstinline{Dsl} instances for \lstinline{Task} are composed from these orthogonal features.
 
 In Section~\ref{An asynchronous HTTP client}, we will present how to create an asynchronous HTTP client from \lstinline{Task}; in  Section~\ref{Parallel execution}, we will introduce the usage of \lstinline{Task[Seq[A]]}, which collects the results of multiple tasks into a \lstinline{Seq}, either executed in parallel or sequentially.
 
@@ -1144,15 +1131,15 @@ In order to measure the performance impact due to direct style DSLs, we have to 
 
 Note that the tasks in the list is executed in the current thread or in a thread pool. We keep each task returning a simple pure value, because we want to measure the overhead of effect systems, not the task itself.
 
-The ``bind'' operation means the primitive operation of each effect system. For Monix tasks, Cats effects, Scalaz Concurrent and Scala Continuations library, the ``bind'' operation is \lstinline{flatMap}; for \textit{Dsl.scala}, the ``bind'' operation is \lstinline{apply}, which may or may not be equivalent to \lstinline{flatMap} according to the type of the current domain.
+The ``bind'' operation means the primitive operation of each effect system. For Monix tasks, Cats effects, Scalaz Concurrent and Scala Continuations, the ``bind'' operation is \lstinline{flatMap}; for \textit{Dsl.scala}, the ``bind'' operation is \lstinline{Shift} LDK, which may or may not be equivalent to \lstinline{flatMap} according to the type of the current domain. In \lstinline{Continuation} domain, the \lstinline{Dsl} instance for \lstinline{Shift} LDK is resolved as \lstinline{derivedContinuationDsl(shiftDsl)}, whose \lstinline{cpsApply} method flat maps a \lstinline{Continuation} to another \lstinline{Continuation}; when using ``underscore trick'', the \lstinline{Dsl} instance for \lstinline{Shift} LDK is resolved as \lstinline{shiftDsl}, which just forwards \lstinline{cpsApply} to the underlying CPS function as a plain function call.
 
-We use the !-notation to perform the \lstinline{apply} in \textit{Dsl.scala}. The !-notation results the exact same Java bytecode to manually passing a callback function to \lstinline{apply} (Listing \ref{RawSum.dsl}).
+We use the !-notation to perform the \lstinline{cpsApply} in \textit{Dsl.scala}. The !-notation results the exact same Java bytecode to manually passing a callback function to \lstinline{cpsApply} (Listing \ref{RawSum.dsl}).
 
 \begin{lstlisting}[float=htbp,caption={The most efficient implementation of sum based on ordinary CPS function},label={RawSum.dsl}]
 def loop(tasks: List[Task[Int]], accumulator: Int = 0)(callback: Int => TaskDomain): TaskDomain = {
   tasks match {
     case head :: tail =>
-      // Expand to: Shift(head).apply(i => loop(tail, i + accumulator)(callback))
+      // Expand to: Shift(head).cpsApply(i => loop(tail, i + accumulator)(callback))
       loop(tail, !head + accumulator)(callback)
     case Nil =>
       callback(accumulator)
@@ -1495,10 +1482,11 @@ Delimited continuations operators of \lstinline{shift} and \lstinline{reset} \ci
 
 Our \lstinline{BangNotation} compiler plug-ins described in Section~\ref{Implementation} can be considered as a simplified version of delimited continuations operators, disallowing delimited continuations across multiple functions. Fortunately, this limitation can be overcame by underscore trick as described in Section~\ref{The underscore trick}.
 
-An ordinary delimited continuation is a CPS function whose implementation is predetermined. In contrast, we introduced ad-hoc polymorphic delimited continuation, the \lstinline{Dsl} type class, whose implementation is adaptive to the enclosing domain. TODO
-
+An ordinary delimited continuation is a CPS function whose implementation is predetermined. In contrast, we introduced the \lstinline{Dsl} type class as a ad-hoc polymorphic CPS function, adaptive to the enclosing domain, as described in Section~\ref{Adaptive library-defined keywords}.
 
 \subsection{\lstinline{for}-comprehension}\label{for-comprehension}
+
+
 
 \subsection{\lstinline{do}-notation}\label{do-notation}
 
