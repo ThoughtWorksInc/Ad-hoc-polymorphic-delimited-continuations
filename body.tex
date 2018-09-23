@@ -88,7 +88,7 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
   \label{dsl-architecture}
 \end{figure}
 
-Ordinary delimited continuations \cite{Danvy89afunctional} can be defined as a function to register a callback function (Listing~\ref{Continuation}), which is similar to the signature of \lstinline{Dsl} type class.
+Ordinary delimited continuations \cite{danvy1989functional} can be defined as a function to register a callback function (Listing~\ref{Continuation}), which is similar to the signature of \lstinline{Dsl} type class.
 
 \begin{lstlisting}[caption={The definition of a delimited continuation},label={Continuation}]
 type Continuation[Domain, Value] = (Value => Domain) => Domain
@@ -493,7 +493,7 @@ trait Keyword[Self, Value] { this: Self =>
     \item There is an additional dummy method \lstinline{unary_!} annotated as \lstinline{@shift} defined in \lstinline{Keyword}. The \lstinline{unary_!} method (or any other \lstinline{@shift}-annotated methods) will be specially treated by our compiler plug-ins, thought it will be considered as an ordinary method from the point view of type checker when our compiler plug-ins is not enabled. The definition of \lstinline{unary_!} method is especially useful for IntelliJ IDEA\footnote{https://www.jetbrains.com/idea/}'s built-in type checker, preventing the edit window in the IDE from being red marked.
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
-  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators \cite{Danvy89afunctional}, respectively.
+  \item[Compiler plug-ins] performs CPS-transformation as described in Section~\ref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators \cite{danvy1989functional}, respectively.
   
   % described by  and \cite{Danvy1990AbstractingC}.
 
