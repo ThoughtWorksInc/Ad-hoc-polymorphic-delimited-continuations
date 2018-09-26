@@ -2,7 +2,7 @@
 
 Traditionally, the capacity of a general purpose language can be extended to special domain by creating an embedded Domain-Specific Language (eDSL) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
 
-Instead of reinventing the whole set of control flow for each DSL, a more general approach is designing a common protocol for control flow operators of all domains. In Haskell and other functional programming language, monads are used as the generic protocol of control flow operators \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{bind} and \lstinline[language=Haskell,deletekeywords={return}]{return} operators in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do} notation \cite{jones1998haskell} or \lstinline{for} comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for} comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
+Instead of reinventing the whole set of control flow for each DSL, a more general approach is designing a common protocol for control flow operators of all domains. In Haskell and other functional programming language, monads are used as the generic protocol of control flow operators \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{bind} and \lstinline[language=Haskell,deletekeywords={return}]{return} operators in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do}-notation \cite{jones1998haskell} or \lstinline{for}-comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for}-comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
 
 An idea to avoid incompatible domain-specific control flow is converting direct style control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of direct style control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary direct style code.
 
@@ -293,7 +293,7 @@ def downloadTwoPages() = Future {
 
 Note that both Listing~\ref{downloadTowPages-bang} and Listing~\ref{downloadTowPages-bang-block} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only \lstinline{Continuation}, while the signature of \lstinline{flatMap} differs from \lstinline{Continuation}, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
 
-Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of those expressions are. Both delimited continuation \lstinline{Continuation} and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to !-notation in Idris or do-notation with \lstinline{RebindableSyntax} in Haskell.
+Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in Listing~\ref{bang-block}, it will be converted to Listing~\ref{cps-block} by our compiler plug-ins. The plug-ins converts \lstinline{!} prefixes to callback functions registrations, regardless what the signature of those expressions are. Both delimited continuation \lstinline{Continuation} and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to !-notation in Idris or \lstinline{do}-notation with \lstinline{RebindableSyntax} in Haskell.
 
 \begin{lstlisting}[mathescape=true, caption={A function with !-notation}, label={bang-block}]
 def f = {
@@ -1107,9 +1107,9 @@ Our benchmarks measured the performance of LDKs in the \lstinline{Task} domain m
     The \texttt{Task} LDK & name-based CPS transformation provided by \textit{Dsl.scala} \\
     Scala Future \cite{haller2012sip} & Scala Async \cite{haller2013sip} \\
     Scala Continuation library \cite{rompf2009implementing} & Scala Continuation compiler plug-in \\
-    Monix tasks \cite{nedelcu2017monix} & \texttt{for} comprehension \\
-    Cats effects \cite{typelevel2017cats} & \texttt{for} comprehension \\
-    Scalaz Concurrent \cite{kenji2017scalaz} & \texttt{for} comprehension \\
+    Monix tasks \cite{nedelcu2017monix} & \texttt{for}-comprehension \\
+    Cats effects \cite{typelevel2017cats} & \texttt{for}-comprehension \\
+    Scalaz Concurrent \cite{kenji2017scalaz} & \texttt{for}-comprehension \\
   \end{tabular}
   \caption{The combination of effect system and direct style DSL being benchmarked}
   \label{combination}
@@ -1189,7 +1189,7 @@ The \lstinline{Task} alias of continuation-passing style function used with \tex
 
 \subsubsection{The performance impact of direct style DSLs}\label{The performance impact of direct style DSLs}
 
-In this section, we will present the performance impact when different syntax notations are introduced. For ordinary CPS functions, we added one more !-notation to avoid manually passing the \lstinline{callback} in the previous benchmark (Listing \ref{LeftAssociatedSum.dsl}, \ref{RightAssociatedSum.dsl}). For other effect systems, we refactored the previous sum benchmarks to use Scala Async, Scala Continuation's \lstinline{@cps} annotations, and \lstinline{for} comprehension, respectively (Listing \ref{LeftAssociatedSum.future}, \ref{RightAssociatedSum.future}, \ref{LeftAssociatedSum.scalaContinuation}, \ref{RightAssociatedSum.scalaContinuation}, \ref{LeftAssociatedSum.scalaz}, \ref{RightAssociatedSum.scalaz}).
+In this section, we will present the performance impact when different syntax notations are introduced. For ordinary CPS functions, we added one more !-notation to avoid manually passing the \lstinline{callback} in the previous benchmark (Listing \ref{LeftAssociatedSum.dsl}, \ref{RightAssociatedSum.dsl}). For other effect systems, we refactored the previous sum benchmarks to use Scala Async, Scala Continuation's \lstinline{@cps} annotations, and \lstinline{for}-comprehension, respectively (Listing \ref{LeftAssociatedSum.future}, \ref{RightAssociatedSum.future}, \ref{LeftAssociatedSum.scalaContinuation}, \ref{RightAssociatedSum.scalaContinuation}, \ref{LeftAssociatedSum.scalaz}, \ref{RightAssociatedSum.scalaz}).
 
 \begin{lstlisting}[float=htbp,caption={Left-associated sum based on LDKs of \textit{Dsl.scala}},label={LeftAssociatedSum.dsl}]
 def loop(tasks: List[Task[Int]]): Task[Int] = _ {
@@ -1257,7 +1257,7 @@ def loop(tasks: List[() => Int @suspendable], accumulator: Int = 0): Int @suspen
 }
 \end{lstlisting}
 
-\begin{lstlisting}[float=htbp,caption={Left-associated sum based on \lstinline{for} comprehension},label={LeftAssociatedSum.scalaz}]
+\begin{lstlisting}[float=htbp,caption={Left-associated sum based on \lstinline{for}-comprehension},label={LeftAssociatedSum.scalaz}]
 def loop(tasks: List[Task[Int]]): Task[Int] = {
   tasks match {
     case head :: tail =>
@@ -1271,7 +1271,7 @@ def loop(tasks: List[Task[Int]]): Task[Int] = {
 }
 \end{lstlisting}
 
-\begin{lstlisting}[float=htbp,caption={Right-associated sum based on \lstinline{for} comprehension},label={RightAssociatedSum.scalaz}]
+\begin{lstlisting}[float=htbp,caption={Right-associated sum based on \lstinline{for}-comprehension},label={RightAssociatedSum.scalaz}]
 def loop(tasks: List[Task[Int]], accumulator: Int = 0): Task[Int] = {
   tasks match {
     case head :: tail =>
@@ -1329,7 +1329,7 @@ Note that reduced sum can be implemented in either left-associated recursion or 
   \label{RightAssociatedSum}
 \end{table}
 
-The result demonstrates that the name-based CPS transformation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark. The \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for} comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for} comprehension is always underoptimized due to the inefficient \lstinline{map}.
+The result demonstrates that the name-based CPS transformation provided by \textit{Dsl.scala} is faster than all other direct style DSLs in the right-associated sum benchmark. The \textit{Dsl.scala} version sum consumes a constant number of memory during the loop, because we implemented a tail-call detection in our CPS-transform compiler plug-in, and the \lstinline{Dsl} interpreter for \lstinline{Task} use a trampoline technique \cite{tarditi1992no}. On the other hand, the benchmark result of Monix Tasks, Cats Effects and Scalaz Concurrent posed a significant performance decay, because they costs O(n) memory due to the \lstinline{map} call generated by \lstinline{for}-comprehension, although those effect systems also built in trampolines. In general, the performance of recursive monadic binds in a \lstinline{for}-comprehension is always underoptimized due to the inefficient \lstinline{map}.
 
 \subsection{The performance of collection manipulation in effect systems}
 
@@ -1355,7 +1355,7 @@ def listTask(rows: List[Future[Int]], columns: List[Future[Int]]): Future[List[I
 }
 \end{lstlisting}
 
-Scala Async or \lstinline{for} comprehension is used in element-wise task \lstinline{cellTask}, but the collection manipulation \lstinline{listTask} is kept as manually written higher order function calls, because neither Scala Async nor \lstinline{for} comprehension supports \lstinline{traverseM}.
+Scala Async or \lstinline{for}-comprehension is used in element-wise task \lstinline{cellTask}, but the collection manipulation \lstinline{listTask} is kept as manually written higher order function calls, because neither Scala Async nor \lstinline{for}-comprehension supports \lstinline{traverseM}.
 
 The benchmark for \textit{Dsl.scala} is entirely written in LDKs (Listing \ref{RawCartesianPruduct.dsl}):
 
@@ -1412,7 +1412,7 @@ def listTask(rows: List[Future[Int]], columns: List[Future[Int]]): Future[List[I
 }.run
 \end{lstlisting}
 
-With the help of \lstinline{ListT} monad transformer, we are able to merge \lstinline{cellTask} and \lstinline{listTask} into one function in a direct style \lstinline{for} comprehension, avoiding any manual written callback functions.
+With the help of \lstinline{ListT} monad transformer, we are able to merge \lstinline{cellTask} and \lstinline{listTask} into one function in a direct style \lstinline{for}-comprehension, avoiding any manual written callback functions.
 
 We also merged \lstinline{cellTask} and \lstinline{listTask} in the \textit{Dsl.scala} version of benchmark (Listing \ref{CartesianProduct.dsl}).
 
@@ -1441,7 +1441,7 @@ This time, Cats Effects are not benchmarked due to lack of \lstinline{ListT} in 
   \label{CartesianProduct}
 \end{table}
 
-Despite the trivial manual lift calls in \lstinline{for} comprehension, the monad transformer approach causes terrible computational performance in comparison to manually called \lstinline{traverseM}. In contrast, the performance of \textit{Dsl.scala} even got improved when \lstinline{cellTask} is inlined into \lstinline{listTask}.
+Despite the trivial manual lift calls in \lstinline{for}-comprehension, the monad transformer approach causes terrible computational performance in comparison to manually called \lstinline{traverseM}. In contrast, the performance of \textit{Dsl.scala} even got improved when \lstinline{cellTask} is inlined into \lstinline{listTask}.
 
 
 \section{Related works}
@@ -1488,12 +1488,19 @@ An ordinary delimited continuation is a CPS function whose implementation is pre
 
 \lstinline{for}-comprehension is a Scala language feature, originally used to produce collections. It is a general form of list comprehension. The Scala compiler internally translates \lstinline{for}-comprehension expressions into method calls to \lstinline{map}, \lstinline{flatMap} and \lstinline{withFitler}. The translation is also name-based, therefore, \lstinline{for}-comprehension can be used not only for collection generation, but also as a general direct style notation for asynchronous programming \footnote{\href{https://docs.scala-lang.org/sips/futures-promises.html}{SIP-14 - Futures and Promises}}, resource management \footnote{\href{http://jsuereth.com/scala-arm/}{Scala ARM}}, or creating monadic expression \cite{kenji2017scalaz,typelevel2017cats,twitter2016algebird}.
 
-However, \lstinline{for}-comprehension does not support native Scala control flow statements. Complex imperative procedure is difficult to be expressed in \lstinline{for}-comprehension. In addition, \lstinline{for}-comprehensions always end with a \lstinline{map}, preventing tail call optimization when composing multiple \lstinline{for}-comprehensions, consuming more memory and resulting worse computational performance than manually written \lstinline{flatMap} calls, according to the benchmarks in Section~\ref{The performance impact of direct style DSLs}.
+However, complex imperative procedures that contain native Scala control flow statements are not supported in \lstinline{for}-comprehensions. In addition, \lstinline{for}-comprehensions always end with a \lstinline{map}, preventing tail call optimization when composing multiple \lstinline{for}-comprehensions, consuming more memory and resulting worse computational performance than manually written \lstinline{flatMap} calls, according to the benchmarks in Section~\ref{The performance impact of direct style DSLs}.
 
 \subsection{\lstinline{do}-notation}\label{do-notation}
 
+\lstinline{do}-notation was originally introduced in Haskell \cite{jones1998haskell}as a direct style notation for creating monadic expressions in a imperative style. \lstinline{do}-notation in Idris or \lstinline{do}-notation in Haskell with \lstinline{RebindableSyntax} are name-based, as they can be used with type classes other than monads.
+
+However, programs written in \lstinline{do}-notation can be unnecessarily verbose, since nested imperative calls are not supported. 
 
 \subsection{!-notation}
+
+!-notation is a direct style notation in Idris \cite{brady2013idris}, to make up nested expressions in \lstinline{do}-notation. Our \lstinline{BangNotation} and \lstinline{ResetEverywhere} compiler plug-ins are re-implementation of Idris's !-notation in Scala, with some minor differences. Our compiler plug-ins support more native control flow expressions, including \lstinline{do}/\lstinline{while} and \lstinline{try}/\lstinline{catch}/\lstinline{finally}/\lstinline{throw}.
+
+Since Idris's !-notation is name-based, \lstinline{Dsl} type class can be port to Idris and work with !-notation.
 
 \subsection{Monads}\label{Monads}
 
@@ -2101,7 +2108,7 @@ The effect handler approach is more efficient than monad transformer because \ls
 %     \hline
 %     Delimited continuation & supported & unsupported & good \\
 %     \hline
-%     \texttt{for} comprehension + monad transformer & unsupported & requires manually lifting & not good \\
+%     \texttt{for}-comprehension + monad transformer & unsupported & requires manually lifting & not good \\
 %     \hline
 %     Compiler-defined keywords \texttt{yield}, \texttt{async} and \texttt{await} in C\#, Python or ECMAScript & supported & unsupported & uncomparable \\
 %   \end{tabulary}
