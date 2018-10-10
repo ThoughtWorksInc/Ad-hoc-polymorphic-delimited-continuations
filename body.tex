@@ -140,7 +140,7 @@ The rest parts of this section is organized as following. Firstly, in Section~\r
 
 For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
 
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
 
 \begin{lstlisting}[language=Python,style=Python3,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
 def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
@@ -780,9 +780,7 @@ implicit def derivedContinuationDsl[Keyword, LeftDomain, RightDomain, Value](
 ) = {
   new Dsl[Keyword, Continuation[LeftDomain, RightDomain], Value] {
     def cpsApply(keyword: Keyword, handler: Value => Continuation[LeftDomain, RightDomain]): Continuation[LeftDomain, RightDomain] = { k =>
-      restDsl.cpsApply(keyword, { v =>
-        handler(v)(k)
-      })
+      restDsl.cpsApply(keyword, handler(_)(k))
     }
   }
 }
@@ -1576,7 +1574,7 @@ The effect handler approach is more efficient than monad transformer because \ls
 \begin{description}
   \item[Straightforwardness] determines whether an eDSL behaves in the native conventions of the hosting language. Effect handlers are not straightforward because \lstinline{Eff} is an additional intermediate script, which is unable to directly collaborate with the hosting language, instead, every eDSL written \lstinline{Eff} requires two steps of type classes, \lstinline{Monad} and \lstinline{Handler}, in order to produce data understandable by the hosting language, as shown in Figure~\ref{eff-architecture}. What is worse is, two \lstinline{Eff}s cannot invoke each other if they contain different effect stacks.
 
-  Our LDK approach is more straightforward, as only one type class \lstinline{Dsl} is used to interpret the eDSL, as shown in Figure~\ref{dsl-architecture}. Instead of producing indirect script \lstinline{Eff}s, LDKs directly produces the underlying data structures, which can be easily used in the hosting language. In addition, a eDSL block can be used in another eDSL block of a different domain as long as the underlying data types are compatible. For example, in LDK approach, the \lstinline{generatorTest} function in Listing~\ref{returnableGenerator} can internally call the \lstinline{returnableGenerator} function even when the two functions return values of different types.
+  Our LDK approach is more straightforward, as only one type class \lstinline{Dsl} is used to interpret the eDSL, as shown in Figure~\ref{dsl-architecture}. Instead of producing indirect script \lstinline{Eff}s, LDKs directly produces the underlying data structures, which can be easily used in the hosting language. In addition, an eDSL block can be used in another eDSL block of a different domain as long as the underlying data types are compatible. For example, in LDK approach, the \lstinline{generatorTest} function in Listing~\ref{returnableGenerator} can internally call the \lstinline{returnableGenerator} function even when the two functions return values of different types.
 
   \item[Keyword-wise Extensibility] determines whether a new keyword or operator can be introduced into an eDSL without change the return domain type. Unfortunately, the effect handler approach is not extensible in keyword-wise because an \lstinline{Eff} consists of a stack of effects, and each effect is specially designed for only a fix number of supported operators. An \lstinline{Eff} is only extensible in the domain-wise by appending a new effect, which will change the type of \lstinline{Eff}. 
 
@@ -1588,9 +1586,120 @@ The effect handler approach is more efficient than monad transformer because \ls
 
 \end{description}
 
+\section{Haskell implementation}\label{Haskell implementation}
+
+We ported \textit{Dsl.scala} to Haskell as the package \textit{control-dsl}. The \lstinline{Dsl} type class in Haskell is defined in Listing~\ref{Dsl-haskell}. The type of \lstinline{cpsApply} is slightly different from Scala version \lstinline{Dsl} (Listing~\ref{Dsl}), as \lstinline{k} is a arity-2 type while \lstinline{Keyword} is a first-order type \footnote{
+  We use shorter identifiers in \textit{control-dsl} to confirms Haskell naming conventions, as shown below:
+  
+  \begin{tabular}{l|l}
+    Identifiers in \textit{Dsl.scala} & Identifiers in \textit{control-dsl} \\
+    \hline
+    \texttt{Keyword} & \texttt{k} \\
+    \texttt{Domain} & \texttt{r} \\
+    \texttt{Value} & \texttt{a} \\
+    \texttt{Continuation} & \texttt{Cont} \\
+    \texttt{handler} & \texttt{f} \\
+  \end{tabular}
+}. The additional type parameters for \lstinline{k} improve the ability of type inference in \lstinline{do} notation.
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{Dsl} type class in \textit{control-dsl}},label={Dsl-haskell}]
+class Dsl k r a where
+  cpsApply :: k r a -> (a -> r) -> r
+\end{lstlisting}
+
+We also provided some helper functions for \lstinline{Dsl} based \lstinline{do}-notation, as shown in Listing~\ref{Dsl-do}. \lstinline{RebindableSyntax} language extension is required to enable those functions for \lstinline{do}-notation.
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Helper functions for \lstinline{Dsl} based \lstinline{do}-notation},label={Dsl-do}]
+(>>=) k = cpsApply k
+k >> a = k >>= const a
+return r = Return r >>= absurd
+fail r = return (userError r)
+\end{lstlisting}
+
+Unfortunately, the additional \lstinline{r} type parameter prevents \lstinline{Dsl} derivation, since the an LDK whose type is \lstinline{k r a} can only be present in \lstinline{do} blocks of type \lstinline{r}. As a result, we are not able to port \lstinline{derivedFunction1Dsl} to Haskell as \lstinline{instance Dsl k r a => Dsl k (s -> r) a}.
+
+To allow derived keywords, we introduced a new type class \lstinline{PolyCont}, which looses the restriction in \lstinline{Dsl}. Instead of deriving \lstinline{Dsl}, an LDK author creates derived \lstinline{PolyCont}, and finally resolves \lstinline{Dsl} from derived \lstinline{PolyCont}, as shown in Listing~\ref{PolyCont-derivation}.
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{PolyCont} derivation},label={PolyCont-derivation}]
+class PolyCont k r a where
+  runPolyCont :: k r' a -> (a -> r) -> r
+
+instance PolyCont k r a => PolyCont k (s -> r) a where
+  runPolyCont k f s = runPolyCont k (\a -> f a s)
+
+instance PolyCont k r a => Dsl k r a where
+  cpsApply = runPolyCont
+\end{lstlisting}
+
+We created an \lstinline{Dsl} instance for monomorphic delimited continuation \lstinline{Cont}, which is used to created control flow operators with nested \lstinline{do}-notation, as shown in Listing~\ref{Cont-instance} and Listing~\ref{when}.
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{Dsl} instance for \lstinline{Cont}},label={Cont-instance}]
+newtype Cont r a = Cont { runCont :: (a -> r) -> r }
+
+instance Dsl Cont r a where
+  cpsApply = runCont
+\end{lstlisting}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Control flow operator \lstinline{when}},label={when}]
+when :: Bool -> Cont r () -> Cont r ()
+when True k = k
+when False _ = Cont ($ ())
+\end{lstlisting}
+
+With the help of the above control flow operators, we are able to create direct style DSL in \lstinline{do}-notation, as shown in Listing~\ref{nested-do}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Nested \lstinline{Dsl} \lstinline{do} blocks},label={nested-do}]
+f = do
+  Yield "foo"
+  config <- Get @Bool
+  when config $ do
+    Yield "bar"
+    return ()
+  return "baz"
+\end{lstlisting}
+
+\lstinline{f} is a \lstinline{do} block that contains LDKs \lstinline{Yield}, \lstinline{Get} and \lstinline{Return} (invoked by \lstinline{return} internally). With the help of built-in \lstinline{PolyCont} instances for those keywords, \lstinline{f} can be used as a function that accepts a boolean parameter, as shown in Listing~\ref{f-pure}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Running \lstinline{f} purely in REPL},label={f-pure}]
+> f False :: [String]
+["foo","baz"]
+
+> f True :: [String]
+["foo","bar","baz"]
+\end{lstlisting}
+
+In fact, \lstinline{f} can be any type as long as \lstinline{PolyCont} instances for involved keywords are provided. The type can be inferred by GHC, as shown in Listing~\ref{type-f}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={The inferred type of a \lstinline{do} block},label={type-f}]
+> :type f
+f :: (PolyCont (Yield [Char]) r (),
+      PolyCont (Return [Char]) r Void, PolyCont Get r Bool) =>
+      r
+\end{lstlisting}
+
+For example, \lstinline{f} can be interpreted as an impure \lstinline{IO ()} (Listing~\ref{run-impure}), providing the instances defined in Listing~\ref{impure-instances}.
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Custom effectful instances for built-in LDKs},label={impure-instances}]
+instance PolyCont (Yield String) (IO ()) () where
+  runPolyCont (Yield a) = (Prelude.>>=) (putStrLn $ "Yield " ++ a)
+instance PolyCont Get (IO ()) Bool where
+  runPolyCont Get f = putStrLn "Get" Prelude.>> f False
+instance PolyCont (Return String) (IO ()) Void where
+  runPolyCont (Return r) _ = putStrLn $ "Return " ++ r
+\end{lstlisting}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Running \lstinline{f} effectfuly in REPL},label={impure-instances}]
+> f :: IO ()
+Yield foo
+Get
+Return baz
+\end{lstlisting}
+
+In brief, the Haskell implementation \textit{control-dsl} has a more powerful ability of type inference, which the \lstinline{do}-notation is more verbose than !-notation that we used with \textit{Dsl.scala}.
+
 \section{Future work}
 
-\subsection{Haskell implementation}\label{Haskell implementation}
+TODO: ``Ad-hoc polymorphic'' ``polymorphic delimited continuation''
 
 \section{Discussion and Conclusion}
 
