@@ -1688,18 +1688,18 @@ instance PolyCont (Return String) (IO ()) Void where
   runPolyCont (Return r) _ = putStrLn $ "Return " ++ r
 \end{lstlisting}
 
-\begin{lstlisting}[float=htbp,language={Haskell},caption={Running \lstinline{f} effectfuly in REPL},label={impure-instances}]
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Running \lstinline{f} effectfuly in REPL},label={run-impure}]
 > f :: IO ()
 Yield foo
 Get
 Return baz
 \end{lstlisting}
 
-In brief, the Haskell implementation \textit{control-dsl} has a more powerful ability of type inference, which the \lstinline{do}-notation is more verbose than !-notation that we used with \textit{Dsl.scala}.
+In brief, the Haskell implementation \textit{control-dsl} can infer type better than \textit{Dsl.scala}, while the \lstinline{do}-notation is more verbose than !-notation in \textit{Dsl.scala}.
 
 \section{Future work}
 
-TODO: ``Ad-hoc polymorphic'' ``polymorphic delimited continuation''
+Two types of polymorphism are involved in this paper. We implemented a \lstinline{BangNotation} plug-in to perform name-based CPS-transformation, which support answer type modification, or \textbf{polymorphic delimited continuation}; we introduced \lstinline{Dsl} type class, which allows run an LDK as a CPS function adaptive to the answer type, or \textbf{ad-hoc polymorphic delimited continuation}. In the future, we will investigate how to represent a delimited continuation that is both polymorphic and ad-hoc polymorphic.
 
 \section{Discussion and Conclusion}
 
