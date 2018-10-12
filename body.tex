@@ -118,15 +118,13 @@ All code examples except Section~\ref{Haskell implementation} are written in our
 
 \section{From delimited continuation to \lstinline{Dsl} type class}\label{Basic concepts}
 
-Our goal is making the control flow of a programming language be extensible. In this section, we will introduce the \lstinline{Dsl} type class and the concept of name-based CPS transformation, with some examples of porting first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in Section~\ref{Haskell implementation}}, while, in other languages, they are used to be implemented as compiler built-in first-class features.
+Our goal is making the control flow of a programming language be extensible. In this section, we will introduce the \lstinline{Dsl} type class and the concept of name-based CPS transformation and demonstrate how to use these technologies to port first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in Section~\ref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in Section~\ref{Haskell implementation}}, while, in other languages, they are used to be implemented as compiler built-in first-class features.
 
 The rest parts of this section is organized as following. Firstly, in Section~\ref{Implementing LDKs as ordinary delimited continuations} and Section~\ref{CPS transformation}, we will present how to port \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in Section~\ref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a monad-like interface. Finally, in Section~\ref{Collaborative library-defined keywords} and Section~\ref{Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} type class to unifying all the previous approaches, and in addition, allowing using multiple LDKs like \lstinline{yield} and \lstinline{await} together.
 
 \subsection{Implementing LDKs as ordinary delimited continuations}\label{Implementing LDKs as ordinary delimited continuations}
 
-For example, given generator is a language feature available in Python, ECMAScript, C\# and many other languages, we will demonstrate how to port the feature to Scala, with the help of the \textit{Dsl.scala} library, and still keeping the compatibility with Scala native control flow and type system.
-
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is an example to create an xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. Listing~\ref{xorShiftRandomGenerator-Python} is a Python example to create an xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
 
 \begin{lstlisting}[language=Python,style=Python3,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
 def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
@@ -142,7 +140,7 @@ print(generated_numbers.__next__()) // The first generated random number
 print(generated_numbers.__next__()) // The second generated random number
 \end{lstlisting}
 
-In our LDK-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
+This generator feature can be ported to Scala as an LDK. In our LDK-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. Listing~\ref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
 
 \lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
@@ -162,7 +160,7 @@ println(generatedNumbers(0)) // The first generated random number
 println(generatedNumbers(1)) // The second generated random number
 \end{lstlisting}
 
-Despite of the implementation of \lstinline{Yield}, which will be revealed in incoming sections, the above use case demonstrates some basic concepts when using \lstinline{Dsl} type class:
+Despite of the implementation of \lstinline{Yield}, which will be revealed in incoming sections, the above use case demonstrates some basic concepts in our approach:
 
 \begin{enumerate}
   \item \lstinline{xorShiftRandomGenerator}, and any functions that contains nested continuation-passing style (CPS) calls, are considered as written in some kind of eDSL.
@@ -173,7 +171,7 @@ Despite of the implementation of \lstinline{Yield}, which will be revealed in in
 
 For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. Listing~\ref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
 
-\begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as ordinary delimited continuations},label={NonadaptiveYield}]
+\begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as an ordinary delimited continuation},label={NonadaptiveYield}]
 case class Yield[A](element: A) extends Continuation[Stream[A], Unit] {
   def apply(handler: Unit => Stream[A]): Stream[A] = {
     new Stream.Cons(element, handler(()))
@@ -183,7 +181,7 @@ case class Yield[A](element: A) extends Continuation[Stream[A], Unit] {
 
 \subsection{Auto-\lstinline{reset} name-based CPS transformation}\label{CPS transformation}
 
-The syntax of Listing~\ref{xorShiftRandomGenerator} differs from first-class generators in Python, ECMAScript, and C\#, as the code block contains some manually created CPS closures. Ideally, the ``rest'' program after a \lstinline{Yield} operation should be indented at the same level of \lstinline{Yield}, not in a nested closure. This coding style can be achieved by the !-notation provided by \textit{Dsl.scala}'s built-in compiler plug-ins. The function \lstinline{xorShiftRandomGenerator} can be written as Listing~\ref{xorShiftRandomGenerator-bang} with the help of the !-notation plug-ins.
+The syntax of Listing~\ref{xorShiftRandomGenerator} differs from first-class generators in Python, as the code block contains some manually created CPS closures. Ideally, the ``rest'' program after a \lstinline{Yield} operation should be indented at the same level of \lstinline{Yield}, not in a nested closure. This coding style can be achieved by the !-notation provided by \textit{Dsl.scala}'s built-in compiler plug-ins. The function \lstinline{xorShiftRandomGenerator} can be written as Listing~\ref{xorShiftRandomGenerator-bang} with the help of the !-notation plug-ins.
 
 \begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in the style of !-notation},label={xorShiftRandomGenerator-bang}]
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
@@ -195,7 +193,7 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = {
 }
 \end{lstlisting}
 
-Our compiler plug-ins performs CPS-transform in a similar approach to \lstinline{reset}/\lstinline{shift} control operators in Scala Continuations \cite{rompf2009implementing}. The \lstinline{!} prefix corresponds to the \lstinline{shift} control operator, and the \lstinline{reset} control operator is added to every function or method body implicitly. Thus the above \lstinline{xorShiftRandomGenerator} is equivalent to Listing~\ref{xorShiftRandomGenerator-scala-continuations} in Scala Continuations.
+Our compiler plug-ins performs CPS-transform in a similar approach to \lstinline{reset}/\lstinline{shift} control operators in Scala Continuations \cite{rompf2009implementing}. The \lstinline{!} prefix corresponds to the \lstinline{shift} control operator, and the \lstinline{reset} control operator will be automatically injected to every function body. Thus the above \lstinline{xorShiftRandomGenerator} is equivalent to Listing~\ref{xorShiftRandomGenerator-scala-continuations} in Scala Continuations.
 
 \begin{lstlisting}[caption={TheXorshift pseudo-random number generator,  in Scala Continuations},label={xorShiftRandomGenerator-scala-continuations}]
 def xorShiftRandomGenerator(seed: Int): Stream[Int] = reset {
@@ -207,7 +205,7 @@ def xorShiftRandomGenerator(seed: Int): Stream[Int] = reset {
 }
 \end{lstlisting}
 
-Because of the implicitly added \lstinline{reset} control operator, the boundary of a delimited continuation can never be escaped from a function in our approach. As a result, our plug-ins are able to eliminate the internal context of delimited continuations. \lstinline{ControlContext} or \lstinline{cps} type annotation in Scala Continuations are not necessary any more.
+Because of the automatically injected \lstinline{reset} control operator, the boundary of a delimited continuation can never be escaped from a function in our approach. Therefore, our plug-ins are able to eliminate the internal context of delimited continuations. Scala Continuations's \lstinline{ControlContext} and \lstinline{cps} type annotations are not necessary any more.
 
 There is another difference between our compiler plug-ins and Scala Continuation. Our compiler plug-ins are name-based instead of type-based, allowing CPS-transformation in monadic blocks, which will be discussed in next section.
 
