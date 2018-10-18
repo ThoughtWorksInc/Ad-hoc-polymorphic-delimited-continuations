@@ -1614,7 +1614,7 @@ instance PolyCont k r a => Dsl k r a where
   cpsApply = runPolyCont
 \end{lstlisting}
 
-\lstinline{Yield} and \lstinline{Return} LDKs are ported to Haskell with the help of \lstinline{PolyCont}, as shown in \cref{PolyCont-Return-Yield}
+\lstinline{Yield} and \lstinline{Return} LDKs are ported to Haskell with the help of \lstinline{PolyCont}, as shown in \cref{PolyCont-Return-Yield-Get}
 
 \begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{PolyCont} instances for \lstinline{Get}, \lstinline{Yield} and \lstinline{Return}},label={PolyCont-Return-Yield-Get}]
 data Get r a where Get :: forall s r. Get r s
@@ -1711,7 +1711,7 @@ The capacity of LDKs is the superset of both monads and ordinary delimited conti
 
 \subsection{Future work}
 
-Two types of polymorphism are involved in this paper. We implemented a \lstinline{BangNotation} plug-in to perform name-based CPS-transformation, which support answer type modification, or \textbf{polymorphic delimited continuation}; we introduced \lstinline{Dsl} type class, which allows run an LDK as a CPS function adaptive to the answer type, or \textbf{ad-hoc polymorphic delimited continuation}. In the future, we will investigate how to represent a delimited continuation that is both polymorphic and ad-hoc polymorphic.
+Two types of polymorphism are involved in this paper. We implemented a \lstinline{BangNotation} Scala compiler plug-in to perform name-based CPS-transformation, which support answer type modification, or \textbf{polymorphic delimited continuation}; we introduced \lstinline{Dsl} type class, which allows run an LDK as a CPS function adaptive to the answer type, or \textbf{ad-hoc polymorphic delimited continuation}. In the future, we will investigate how to represent a delimited continuation that is both polymorphic and ad-hoc polymorphic.
 
 \clearpage
 \appendix
