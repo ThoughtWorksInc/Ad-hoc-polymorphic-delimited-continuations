@@ -1568,7 +1568,7 @@ The effect handler approach is more efficient than monad transformer because \ls
 
 \section{Haskell implementation}\label{Haskell implementation}
 
-We ported \textit{Dsl.scala} to Haskell as the package \textit{control-dsl}. The \lstinline{Dsl} type class in Haskell is defined in \cref{Dsl-haskell}. The type of \lstinline{cpsApply} is slightly different from Scala version \lstinline{Dsl} (\cref{Dsl}), as \lstinline{k} is a arity-2 type while \lstinline{Keyword} is a first-order type \footnote{
+We ported \textit{Dsl.scala} to Haskell as the package \textit{control-dsl}. The \lstinline{Dsl} type class in Haskell is defined in \cref{Dsl-haskell}. The type of \lstinline{cpsApply} is slightly different from Scala version \lstinline{Dsl} defined in \cref{Dsl}, as \lstinline{k} is a arity-2 type parameter while \lstinline{Keyword} is a first-order type parameter \footnote{
   We use shorter identifiers in \textit{control-dsl} to confirms Haskell naming conventions, as shown below:
   
   \begin{tabular}{l|l}
@@ -1589,9 +1589,12 @@ class Dsl k r a where
 
 We also provided some helper functions for \lstinline{Dsl} based \lstinline{do}-notation, as shown in \cref{Dsl-do}. \lstinline{RebindableSyntax} language extension is required to enable those functions for \lstinline{do}-notation.
 
-\begin{lstlisting}[float=htbp,language={Haskell},caption={Helper functions for \lstinline{Dsl} based \lstinline{do}-notation},label={Dsl-do}]
+\begin{lstlisting}[float=htbp,language={Haskell},caption={Helpers for \lstinline{Dsl} based \lstinline{do}-notation},label={Dsl-do}]
 (>>=) k = cpsApply k
 k >> a = k >>= const a
+
+data Return r' r a where Return :: r' -> Return r' r Void
+
 return r = Return r >>= absurd
 fail r = return (userError r)
 \end{lstlisting}
@@ -1611,7 +1614,24 @@ instance PolyCont k r a => Dsl k r a where
   cpsApply = runPolyCont
 \end{lstlisting}
 
-We created an \lstinline{Dsl} instance for monomorphic delimited continuation \lstinline{Cont}, which is used to created control flow operators with nested \lstinline{do}-notation, as shown in \cref{Cont-instance,when}.
+\lstinline{Yield} and \lstinline{Return} LDKs are ported to Haskell with the help of \lstinline{PolyCont}, as shown in \cref{PolyCont-Return-Yield}
+
+\begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{PolyCont} instances for \lstinline{Get}, \lstinline{Yield} and \lstinline{Return}},label={PolyCont-Return-Yield-Get}]
+data Get r a where Get :: forall s r. Get r s
+
+instance PolyCont Get (s -> r) s where
+  runPolyCont Get f s = f s s
+  
+data Yield x r a where Yield :: x -> Yield x r ()
+
+instance PolyCont (Yield x) [x] () where
+  runPolyCont (Yield x) f = x : f ()
+
+instance PolyCont (Return r) r Void where
+  runPolyCont (Return r) _ = r
+\end{lstlisting}
+
+We created another \lstinline{Dsl} instance for monomorphic delimited continuation \lstinline{Cont}, which is used to created control flow operators with nested \lstinline{do}-notation, as shown in \cref{Cont-instance,when}.
 
 \begin{lstlisting}[float=htbp,language={Haskell},caption={\lstinline{Dsl} instance for \lstinline{Cont}},label={Cont-instance}]
 newtype Cont r a = Cont { runCont :: (a -> r) -> r }
