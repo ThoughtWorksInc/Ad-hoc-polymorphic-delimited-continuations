@@ -1,21 +1,21 @@
 \section{Introduction}\label{Introduction}
 
-Traditionally, the capacity of a general purpose language can be extended to special domain by creating an embedded Domain-Specific Language (eDSL) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
+Traditionally, the capacity of a general purpose language can be extended to a special domain by creating an embedded Domain-Specific Language (eDSL) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
 
-Instead of reinventing the whole set of control flow for each DSL, a more general approach is designing a common protocol for control flow operators of all domains. In Haskell and other functional programming language, monads are used as the generic protocol of control flow operators \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{>>=} and \lstinline[language=Haskell,deletekeywords={return}]{return} operators in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do}-notation \cite{jones1998haskell} or \lstinline{for}-comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for}-comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for data types \lstinline{org.scalacheck.Gen} and \lstinline{com.thoughtworks.binding.Binding} respectively.
+Instead of reinventing the whole set of control flow for each DSL, a more general approach is designing a common protocol for control flow operators of all domains. In Haskell and other functional programming language, monads are used as the generic protocol of control flow operators \cite{wadler1990comprehending,wadler1992essence,jones1993composing}. Scala implementations of monads are provided by Scalaz \cite{kenji2017scalaz}, Cats \cite{typelevel2017cats}, Monix \cite{nedelcu2017monix} and Algebird \cite{twitter2016algebird}. A DSL author only has to implement \lstinline{>>=} and \lstinline[language=Haskell,deletekeywords={return}]{return} operators in \lstinline{Monad} type class, and all the derived control flow operations like \lstinline{whileM} or \lstinline{ifM} are available. In addition, those monadic data type can be created and composed from \lstinline{do}-notation \cite{jones1998haskell} or \lstinline{for}-comprehension \cite{odersky2004scala}. For example, you can use the same \lstinline{scalaz.syntax} or \lstinline{for}-comprehension to create random value generators \cite{nilsson2015scalacheck} and data-binding expressions \cite{yangbo2016binding}, as long as there are \lstinline{Monad} instances for those domain-specific monadic data types respectively.
 
-An idea to avoid incompatible domain-specific control flow is converting direct style control flow to domain-specific control flow at compiler time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of direct style control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary direct style code.
+An idea to avoid incompatible domain-specific control flow is converting direct style control flow to domain-specific control flow at compile time. For example, Scala Async provides a macro to generate asynchronous control flow \cite{haller2013sip}, allowing normal sequential code inside a \lstinline{scala.async} block to run asynchronously. This approach can be generalized to any monadic data types. ThoughtWorks Each \cite{yangbo2015each}, Monadless \cite{flavio2017monadless}, effectful \cite{crockett2013effectful} and !-notation in Idris \cite{brady2013idris} are compiler-time transformers to convert source code of direct style control flow to monadic control flow. For example, with the help of ThoughtWorks Each, Binding.scala\cite{yangbo2016binding} can be used to create reactive HTML template from ordinary direct style code.
 
-Another generic protocol of control flow is delimited continuation, which is known as the mother of all monads \cite{piponi2008mother}, where specific control flow in specific domain can be supported by specific answer types of continuations \cite{asai2007polymorphic}. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert direct style control flow to continuation-passing style closure chains at compiler time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special answer type for akka actors. Unlike reinvented control flow in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple direct style control flow along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
+Another generic protocol of control flow is delimited continuation, which is known as the mother of all monads \cite{piponi2008mother}, where specific control flow in specific domain can be supported by specific answer types of continuations \cite{asai2007polymorphic}. Scala Continuations \cite{rompf2009implementing} and Stateless Future \cite{yangbo2014stateless} are two delimited continuation implementations in Scala. Both projects can convert direct style control flow to continuation-passing style closure chains at compile time. For example, Stateless Future Akka \cite{yangbo2014statelessfutureakka}, based on Stateless Future, provides a special answer type for akka actors. Unlike reinvented control flow in \lstinline{akka.actor.AbstractFSM}, users can create complex finite-state machines from simple direct style control flow along with Stateless Future Akka's domain-specific operator \lstinline{nextMessage}.
 
 All the previous approaches lack of the ability to collaborate with other DSLs. Each of the above DSLs can be exclusively enabled in a code block. Scala Continuations enables calls to \lstinline{@cps} method in \lstinline{reset} blocks, and ThoughtWorks Each enables the magic \lstinline{each} method \cite{yangbo2015each} for \lstinline{scalaz.Monad} in \lstinline{monadic} blocks. It was impossible to enable both DSL in one function.
 
-Monad transformers \cite{liang1995monad} is a popular technique to solve the collaboration problem. The basic idea is to use a \lstinline{lift} function to convert different monadic type into the same transformed monadic type. Thus \lstinline{do} block of transformed monadic type can contain different DSL operations as long as they can be \lstinline{lift}ed. With the help of additional type classes, those \lstinline{lift} operations can be performed automatically.
+Monad transformers \cite{liang1995monad} is a popular technique to solve the collaboration problem. The basic idea is to use a \lstinline{lift} function to convert different monadic type into the same transformed monadic type. Thus a \lstinline{do} block of a transformed monadic type can contain different DSL operations as long as they can be \lstinline{lift}ed. With the help of additional type classes, those \lstinline{lift} operations can be performed automatically.
 
-However, deeply nested transformed monad was considered inefficient in  due to the nested \lstinline{lift}. An alternative approach proposed by
-\cite{kiselyov2013extensible} is effect handlers. In effect handler approach, the DSL ``script'' is written in a universal monadic type \lstinline{Eff}, which allows multiple DSLs in one \lstinline{do} block. Each DSL is considered as an effect, which is dispatched by \lstinline{Eff} to the specific \lstinline{Handler}. This approach is heavy-weight, since only expressions written in \lstinline{Eff} script are able to use DSLs defined in effect handlers. Additional conversion is required to retrieve the ``raw'' data type from an \lstinline{Eff} \lstinline{do} block.
+However, a deeply nested transformed monad was considered inefficient  due to the nested \lstinline{lift}. An alternative approach proposed by
+\cite{kiselyov2013extensible} is effect handlers. In the effect handler approach, the DSL ``script'' is written in a universal monadic type \lstinline{Eff}, which allows for multiple DSLs in one \lstinline{do} block. Each DSL is considered as an effect, which is dispatched by \lstinline{Eff} to the specific \lstinline{Handler}. This approach is heavy-weight, since only expressions written in \lstinline{Eff} script are able to use DSLs defined in effect handlers. Additional conversion is required to retrieve the ``raw'' data type from an \lstinline{Eff} \lstinline{do} block.
 
-This paper proposed a new type class \lstinline{Dsl}, which can be consider as both the ad-hoc polymorphic version of delimited-continuation and a more generic version of \lstinline{Monad}. The Scala definition of the type class is shown in \cref{Dsl}.
+This paper proposes a new type class \lstinline{Dsl}, which can be considered as both the ad-hoc polymorphic version of a delimited-continuation and a more generic version of \lstinline{Monad}. The Scala definition of the type class is shown in \cref{Dsl}.
 
 \begin{lstlisting}[caption={The definition of \lstinline{Dsl} type class},label={Dsl}]
 trait Dsl[Keyword, Domain, Value] {
@@ -23,7 +23,7 @@ trait Dsl[Keyword, Domain, Value] {
 }
 \end{lstlisting}
 
-Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code block contain interleaved heterogeneous \lstinline{Keyword}s, interpreted by different \lstinline{Dsl} type class instances. Instead of returning an intermediate script type like \lstinline{Eff} \cite{kiselyov2013extensible}, the return type of a DSL code block can vary as long as it supports operations used in it. No intermediate \lstinline{Monad} for dispatching is used. The difference of architecture between effect handler approach and our approach is shown in \cref{eff-architecture,dsl-architecture}.
+Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code block to contain interleaved heterogeneous \lstinline{Keyword}s, interpreted by different \lstinline{Dsl} type class instances. Instead of returning an intermediate script type like \lstinline{Eff} \cite{kiselyov2013extensible}, the return type of a DSL code block can vary as long as it supports operations used in it. No intermediate \lstinline{Monad} for dispatching is used. The difference of architecture between effect handler approach and our approach is shown in \cref{eff-architecture,dsl-architecture}.
 
 \begin{figure}[h t b p]
   \begin{dot2tex}[dot,mathmode,autosize,graphstyle={scale=0.78,transform shape}]
@@ -36,7 +36,6 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
       
       Effect_0
       Effect_1
-      Effect_2
       Effect_dots [ label="{\vdots}" shape=none ]
       Effect_n
     }
@@ -45,8 +44,6 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
     "Eff" -> Handler_0 [ label="\textrm{dispatched to}" ]
     Effect_1 -> "Eff"  [ label="\textrm{interpreted by}" ]
     "Eff" -> Handler_1 [ label="\textrm{dispatched to}" ]
-    Effect_2 -> "Eff"  [ label="\textrm{interpreted by}" ]
-    "Eff" -> Handler_2 [ label="\textrm{dispatched to}" ]
     Handler_dots  [ label="{\vdots}" shape=none ]
     Effect_dots -> "Eff"  [ style=invis ]
     "Eff" -> Handler_dots [ style=invis ]
@@ -69,14 +66,12 @@ Because \lstinline{Dsl} is more generic than \lstinline{Monad}, it allows a code
       graph [ label="\textrm{a code block that returns any \texttt{Domain}}" ]
       Keyword_0
       Keyword_1
-      Keyword_2
       Keyword_dots [ label="{\vdots}" shape=none ]
       Keyword_n
     }
 
     Keyword_0 -> Dsl_0 [ label="\textrm{interpreted by}" ]
     Keyword_1 -> Dsl_1 [ label="\textrm{interpreted by}" ]
-    Keyword_2 -> Dsl_2 [ label="\textrm{interpreted by}" ]
     Keyword_dots -> Dsl_dots [ style=invis ]
     Keyword_n -> Dsl_n [ label="\textrm{interpreted by}" ]
 
@@ -94,9 +89,9 @@ Ordinary delimited continuations \cite{danvy1989functional} can be defined as a 
 type Continuation[Domain, Value] = (Value => Domain) => Domain
 \end{lstlisting}
 
-A \lstinline{Continuation} itself contains the implementation of an operation. As a result, a delimited continuation can only be used in a function that returns the specified \lstinline{Domain}. In contrast, in our approach, each \lstinline{Keyword} is ad-hoc polymorphic to the \lstinline{Domain}, thus the it is can be interpreted differently according to the enclosing \lstinline{Domain}.
+A \lstinline{Continuation} itself contains the implementation of an operation. As a result, a delimited continuation can only be used in a function that returns the specified \lstinline{Domain}. In contrast, in our approach, each \lstinline{Keyword} is ad-hoc polymorphic to the \lstinline{Domain}, thus it can be interpreted differently according to the enclosing \lstinline{Domain}.
 
-In the rest sections of this paper, we will present the design and use cases of \lstinline{Dsl} type class, including:
+In the remaining sections of this paper, we will present the design and use cases of \lstinline{Dsl} type class, including:
 
 \begin{enumerate}
   \item Simulating some first-class features in Python, C\#, ECMAScript and C++, as library-defined keywords;
@@ -105,26 +100,26 @@ In the rest sections of this paper, we will present the design and use cases of 
   \item Simulating \lstinline{Monad} to create imperative code blocks;
   \label{simulating-monad}
 
-  \item Composing delimited continuations with less closure creation than \lstinline{Continuation} \lstinline{Monad} approach;
+  \item Composing delimited continuations with less closure creation than \lstinline{Monad} for continuations;
   \label{composing-delimited-continuations}
 
-  \item Making \lstinline{Continuation} stack safe, in a non-intrusive approach;
+  \item Making \lstinline{Continuation} stack safe, in a non-intrusive way; % TODO stack safety
   \label{stack-safe-Continuation}
 
   \item Using any combination of the features of \cref{simulating-first-class-features,simulating-monad,composing-delimited-continuations,stack-safe-Continuation}, in a single code block.
 \end{enumerate}
 
-All code examples except \cref{Haskell implementation} are written in our Scala library \textit{Dsl.scala}, which provides an implementation of \lstinline{Dsl} type class, along with a Scala compiler plug-in to perform CPS-transformation. The compiler plug-in avoids ``callback hell'' problem, allowing Idris-like !-notation \cite{brady2013idris} direct style DSL in Scala, which can be used for not only monadic data type but also other operations.
+All code examples except \cref{Haskell implementation} are written in our Scala library \textit{Dsl.scala}, which provides an implementation of \lstinline{Dsl} type class, along with a Scala compiler plug-in to perform a CPS-transformation. The compiler plug-in avoids the ``callback hell'' problem, allowing Idris-like !-notation \cite{brady2013idris} direct style DSL in Scala, which can be used for not only monadic data type but also other operations.
 
-\section{From delimited continuation to \lstinline{Dsl} type class}\label{Basic concepts}
+\section{From delimited continuation to the \lstinline{Dsl} type class}\label{Basic concepts}
 
-Our goal is making the control flow of a programming language be extensible. In this section, we will introduce the \lstinline{Dsl} type class and the concept of name-based CPS transformation and demonstrate how to use these technologies to port first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in \cref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in \cref{Haskell implementation}}, while, in other languages, they are used to be implemented as compiler built-in first-class features.
+Our goal is making the control flow of a programming language to be extensible. In this section, we will introduce the \lstinline{Dsl} type class and the concept of name-based CPS transformation and demonstrate how to use these techniques to port first class Python language features to Scala, as library-defined keyword (LDK) \footnote{Code listings shown in \cref{Basic concepts} are not exactly the same as the implementation in \textit{Dsl.scala}, instead, these implementations of LDKs are modified or simplified for the purpose of introducing the concept of the LDK approach more clearly.}. The term LDK denotes language features implemented by libraries. No metaprogramming knowledge is required for either LDK authors or LDK users \footnote{ Though, Scala LDKs need the common compiler plug-ins to perform CPS transformation and Haskell LDKs need \lstinline{RebindableSyntax} described in \cref{Haskell implementation}}, while, in other languages, they are used to be implemented as compiler built-in first-class features.
 
-The rest parts of this section is organized as following. Firstly, in \cref{Implementing LDKs as ordinary delimited continuations,CPS transformation}, we will present how to port \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in \cref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a monad-like interface. Finally, in \cref{Collaborative library-defined keywords,Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} type class to unifying all the previous approaches, and in addition, allowing using multiple LDKs like \lstinline{yield} and \lstinline{await} together.
+The remaining parts of this section are organized as following. Firstly, in \cref{Implementing LDKs as ordinary delimited continuations,CPS transformation}, we will present how to port \lstinline{yield} to Scala in the ordinary delimited continuation approach. Then in \cref{Monadic blocks}, we will present how to port \lstinline{await} to Scala in a monad-like interface. Finally, in \cref{Collaborative library-defined keywords,Adaptive library-defined keywords}, we will introduce the type class \lstinline{Dsl} to unifying all the previous approaches, and in addition, allowing for the use of multiple LDKs like \lstinline{yield} and \lstinline{await} together.
 
 \subsection{Implementing LDKs as ordinary delimited continuations}\label{Implementing LDKs as ordinary delimited continuations}
 
-In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator, to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. \cref{xorShiftRandomGenerator-Python} is a Python example to create an xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
+In Python, ECMAScript, and C\#, a generator is a function that returns an \lstinline{Iterator} or an \lstinline{IEnumerator}. The \lstinline{yield} keyword is available inside the generator to lazily produce one element, which can be consumed by the \lstinline{Iterator} / \lstinline{IEnumerator} user. \Cref{xorShiftRandomGenerator-Python} is a Python example to create an xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite iterator of generated numbers. Note that NumPy \footnote{http://www.numpy.org/} is used for 32-bit integers, and type hinting \footnote{https://docs.python.org/3/library/typing.html} is used for clarity.
 
 \begin{lstlisting}[language=Python,style=Python3,caption={An Xorshift pseudo-random number generator in Python 3.5+},label={xorShiftRandomGenerator-Python}]
 def xor_shift_random_generator(seed: np.uint32) -> Iterator[np.uint32]:
@@ -140,7 +135,7 @@ print(generated_numbers.__next__()) // The first generated random number
 print(generated_numbers.__next__()) // The second generated random number
 \end{lstlisting}
 
-This generator feature can be ported to Scala as an LDK. In our LDK-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. \cref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
+This generator feature can be ported to Scala as an LDK. In our LDK-based generator, the return type is replaced to \lstinline{Stream}, which can be considered as the immutable version of \lstinline{Iterator}, and the compiler-defined keyword \lstinline{yield} is replaced to library-defined keyword \lstinline{Yield}. \Cref{xorShiftRandomGenerator} is an example to create an Xorshift \cite{marsaglia2003xorshift} pseudo-random number generator that returns an infinite stream of generated numbers. 
 
 \lstinline{xorShiftRandomGenerator} does not throw a \lstinline{StackOverflowError}, because the execution of \lstinline{xorShiftRandomGenerator} will be paused at \lstinline{Yield}, and it will be resumed when the caller is looking for the next number.
 
@@ -160,7 +155,7 @@ println(generatedNumbers(0)) // The first generated random number
 println(generatedNumbers(1)) // The second generated random number
 \end{lstlisting}
 
-Despite of the implementation of \lstinline{Yield}, which will be revealed in incoming sections, the above use case demonstrates some basic concepts in our approach:
+Despite of the implementation of \lstinline{Yield}, which will be revealed in upcoming sections, the above use case demonstrates some basic concepts in our approach:
 
 \begin{enumerate}
   \item \lstinline{xorShiftRandomGenerator}, and any functions that contains nested continuation-passing style (CPS) calls, are considered as written in some kind of eDSL.
@@ -169,7 +164,7 @@ Despite of the implementation of \lstinline{Yield}, which will be revealed in in
   \item Along with LDK, DSLs written in \textit{Dsl.scala} also support native Scala control flows and expressions.
 \end{enumerate}
 
-For simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. \cref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
+For a simple use case such as \lstinline{xorShiftRandomGenerator}, LDKs can be implemented as ordinary delimited continuations. \Cref{NonadaptiveYield} shows an implementation of the \lstinline{Yield} LDK, as a delimited continuation, in which the \lstinline{Yield} LDK creates infinite \lstinline{Stream}s by capturing \lstinline{handler} into a lazily evaluated \lstinline{Stream.Cons}.
 
 \begin{lstlisting}[caption={Implementing \lstinline{Yield} LDK as an ordinary delimited continuation},label={NonadaptiveYield}]
 case class Yield[A](element: A) extends Continuation[Stream[A], Unit] {
@@ -225,9 +220,9 @@ async def download_two_pages() -> Awaitable[Tuple[bytes, bytes]]:
   return (content1, content2)
 \end{lstlisting}
 
-When porting \lstinline{await} feature to Scala, we replaced the compiler-defined keyword \lstinline{await} to a library-defined keyword \lstinline{Await}, and replaced \lstinline{Awaitable} to \lstinline{Future} \footnote{https://docs.scala-lang.org/overviews/core/futures.html} as shown in \cref{downloadTowPages}. Note that \lstinline{ByteString}, \lstinline{Http}, \lstinline{Http}, \lstinline{HttpMethods}, \lstinline{HttpRequest} in \lstinline{downloadTwoPages} are asynchronous HTTP library provided by Akka \footnote{https://akka.io/} and Akka HTTP \footnote{https://akka.io/akka-http/}.
+When porting \lstinline{await} feature to Scala, we replaced the compiler-defined keyword \lstinline{await} to a library-defined keyword \lstinline{Await}, and replaced \lstinline{Awaitable} to \lstinline{Future} \footnote{https://docs.scala-lang.org/overviews/core/futures.html} as shown in \cref{downloadTwoPages}. Note that \lstinline{ByteString}, \lstinline{Http}, \lstinline{Http}, \lstinline{HttpMethods}, \lstinline{HttpRequest} in \lstinline{downloadTwoPages} are asynchronous HTTP library provided by Akka \footnote{https://akka.io/} and Akka HTTP \footnote{https://akka.io/akka-http/}.
 
-\begin{lstlisting}[caption={Asynchronously downloading two web pages in \textit{Dsl.scala} },label={downloadTowPages}]
+\begin{lstlisting}[caption={Asynchronously downloading two web pages in \textit{Dsl.scala} },label={downloadTwoPages}]
 def downloadTwoPages(): Future[(ByteString, ByteString)] = {
   Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) { response1 =>
     Await(response1.entity.toStrict(timeout = 5.seconds)) { content1 =>
@@ -251,22 +246,10 @@ case class Await[A](future: Future[A]) {
 }
 \end{lstlisting}
 
-Similar to CPS-transformation in \cref{xorShiftRandomGenerator-bang}, the nested callback functions registered to \lstinline{Await} in the \lstinline{downloadTowPages} method can be replaced to !-notation with the help of our compiler plug-ins. The direct style version of \lstinline{downloadTowPages} is shown in \cref{downloadTowPages-bang}.
+Similar to CPS-transformation in \cref{xorShiftRandomGenerator-bang}, the nested callback functions registered to \lstinline{Await} in the \lstinline{downloadTwoPages} method can be replaced to !-notation with the help of our compiler plug-ins. The direct style version of \lstinline{downloadTwoPages} is shown in \cref{downloadTwoPages-bang}.
 
-\begin{lstlisting}[caption={Asynchronously downloading two web pages, in the style of !-notation},label={downloadTowPages-bang}]
-def downloadTwoPages(): Future[(ByteString, ByteString)] = {
-  val response1 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) 
-  val content1 = !Await(response1.entity.toStrict(timeout = 5.seconds))
-  val response2 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net")))
-  val content2 = !Await(response2.entity.toStrict(timeout = 5.seconds))
-  Future((content1.data, content2.data))
-}
-\end{lstlisting}
-
-Alternately, the last \lstinline{Future} call can be moved to the front of the function body as shown in \cref{downloadTowPages-bang-block}. It is possible because the block statement in Scala is also an expression that has a value. \lstinline|{e1; e2; f(a)}| and \lstinline|f{e1; e2; a}| are always equivalent as long as \lstinline{f} is a call-by-value function.
-
-\begin{lstlisting}[caption={Asynchronously downloading two web pages, within a \lstinline{Future} block},label={downloadTowPages-bang-block}]
-def downloadTwoPages() = Future {
+\begin{lstlisting}[caption={Asynchronously downloading two web pages, in the style of !-notation},label={downloadTwoPages-bang}]
+def downloadTwoPages(): Future[(ByteString, ByteString)] = Future {
   val response1 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.com"))) 
   val content1 = !Await(response1.entity.toStrict(timeout = 5.seconds))
   val response2 = !Await(Http().singleRequest(HttpRequest(HttpMethods.GET, "http://example.net")))
@@ -275,7 +258,7 @@ def downloadTwoPages() = Future {
 }
 \end{lstlisting}
 
-Note that both \cref{downloadTowPages-bang,downloadTowPages-bang-block} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only \lstinline{Continuation}, while the signature of \lstinline{flatMap} differs from \lstinline{Continuation}, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
+Note that \cref{downloadTwoPages-bang} are unable to be expressed in Scala Continuation because the \lstinline{shift} control operator accepts only CPS-functions, while the signature of \lstinline{flatMap} differs from CPS-functions, due to the additional type parameter \lstinline{B} and the additional implicit parameter of \lstinline{ExecutionContext}.
 
 Fortunately our CPS-transformation compiler plug-ins are name-based. Given any expression $e_0$, $e_1$, ..., $e_n$, variable name $v_0$, $v_1$, ..., $v_n$ and the final expression $r$ in a function \lstinline{f}, as shown in \cref{bang-block}, it will be converted to \cref{cps-block} by our compiler plug-ins. The plug-ins convert ! prefixes to callback functions registrations, regardless what the signatures of those expressions are. Both delimited continuation and monad-like operations are supported. The behavior of our CPS-transformation compiler plug-ins is similar to !-notation in Idris or \lstinline{do}-notation with \lstinline{RebindableSyntax} in Haskell.
 
@@ -342,7 +325,7 @@ async def download_two_pages_generator() -> AsyncGenerator[bytes, None]:
     yield content2
 \end{lstlisting}
 
-\cref{download_two_pages_generator-Python} shows an example of downloading two web pages with combination of \lstinline{yield} and \lstinline[language=Python,style=Python3]{await}. In Python, when an \lstinline{async} function like \lstinline{download_two_pages_generator} contains both \lstinline{yield} and \lstinline{await} keywords, the return type becomes \lstinline{AsyncGenerator}.
+\Cref{download_two_pages_generator-Python} shows an example of downloading two web pages with combination of \lstinline{yield} and \lstinline[language=Python,style=Python3]{await}. In Python, when an \lstinline{async} function like \lstinline{download_two_pages_generator} contains both \lstinline{yield} and \lstinline{await} keywords, the return type becomes \lstinline{AsyncGenerator}.
 
 The corresponding type of \lstinline{AsyncGenerator[bytes, None]} in Scala could be \lstinline{Stream[Future[ByteString]]}, which should be the return type of \lstinline{apply} in the modified version of \lstinline{Yield} and \lstinline{Await}. Therefore, the modified version of \lstinline{Yield} and \lstinline{Await} can be implemented as \cref{Yield-StreamFuture,Await-StreamFuture}, and the usage of asynchronous generator with !-notation is shown in \cref{downloadTwoPages-StreamFuture}.
 
@@ -354,7 +337,7 @@ case class Yield[A](element: A) {
 }
 \end{lstlisting}
 
-\begin{lstlisting}[caption={Implementing modified version of \lstinline{Await} LDK for creating asynchronous generators},label={Await-StreamFuture}]
+\begin{lstlisting}[caption={Implementing a modified version of \lstinline{Await} LDK for creating asynchronous generators},label={Await-StreamFuture}]
 case class Await[A](future: Future[A]) {
   def apply[B](handler: A => Stream[Future[B]])(implicit ec: ExecutionContext): Stream[Future[B]] = {
     val ff = future.map(handler)
@@ -387,7 +370,7 @@ The modified version of \lstinline{Yield} and \lstinline{Await} LDKs are collabo
 
 \subsection{Adaptive library-defined keywords}\label{Adaptive library-defined keywords}
 
-In previous sections, we presented two different implementations of \lstinline{Yield} in \cref{NonadaptiveYield,Yield-StreamFuture} and two different implementations of \lstinline{Await} in \cref{NonadaptiveAwait,Await-StreamFuture} for creating asynchronous value and asynchronous generators, respectively. However, the semantics the \lstinline{Yield} and \lstinline{Await} are not automatically determined by their context like Python. In this section, we will introduce the type class \lstinline{Dsl} for creating adaptive library-defined keywords to fix the problem.
+In previous sections, we presented two different implementations of \lstinline{Yield} in \cref{NonadaptiveYield,Yield-StreamFuture} and two different implementations of \lstinline{Await} in \cref{NonadaptiveAwait,Await-StreamFuture} for creating asynchronous value and asynchronous generators, respectively. However, the semantics the \lstinline{Yield} and \lstinline{Await} are not automatically determined by their context like Python. In this section, we will introduce the type class \lstinline{Dsl} for creating adaptive library-defined keywords to solve the collaboration problem.
 
 In \textit{Dsl.scala}, the \lstinline{Dsl} type class as defined in \cref{Dsl} is usually used along with \lstinline{Keyword} (\cref{Keyword}), which should be the super type of all adaptive LDKs.
 
@@ -402,7 +385,7 @@ trait Keyword[Self, Value] { this: Self =>
 }
 \end{lstlisting}
 
-An \lstinline{apply} call is an alias of \lstinline{cpsApply}, which registers a callback to handle the \lstinline{Value}, and finally returns a \lstinline{Domain}. The self type (\lstinline{Self}) and the value of the keyword (\lstinline{Value}) are defined in sub types of \lstinline{Keyword}. The actually implementation of a keyword is resolved by the multi-parameter type class \lstinline{Dsl}, which varies according to \lstinline{Domain}, the return type of enclosing function of the keyword's call site. For example, the adaptive version of \lstinline{Yield} and \lstinline{Await} can be defined as \cref{Yield,Await}.
+An \lstinline{apply} call is an alias of \lstinline{cpsApply}, which registers a callback to handle the \lstinline{Value}, and finally returns a \lstinline{Domain}. The self type (\lstinline{Self}) and the value of the keyword (\lstinline{Value}) are defined in sub types of \lstinline{Keyword}. The actually implementation of a keyword is resolved by the multi-parameter type class \lstinline{Dsl}, which varies according to \lstinline{Domain}, the return type of the enclosing function of the keyword's call site. For example, the adaptive version of \lstinline{Yield} and \lstinline{Await} can be defined as \cref{Yield,Await}.
 
 \begin{lstlisting}[caption={The \lstinline{Yield} LDK, the adaptive version},label={Yield}]
 case class Yield[A](element: A) extends Keyword[Yield[A], Unit]
@@ -412,7 +395,7 @@ case class Yield[A](element: A) extends Keyword[Yield[A], Unit]
 case class Await[Value](future: Future[Value]) extends Keyword[Await[Value], Value]
 \end{lstlisting}
 
-When performing !-notation on a \lstinline{Keyword} to produce a \lstinline{Value} inside a function whose return type is \lstinline{Domain}, the type class instance of \lstinline{Dsl[Keyword, Domain, Value]} is required. For example, Adaptive version of LDKs in \cref{NonadaptiveYield,NonadaptiveAwait,Yield-StreamFuture,Await-StreamFuture} requires \lstinline{Dsl} instances implemented in \cref{Yield-generator-instance,Yield-async-generator-instance,Await-future-instance,Await-async-generator-instance}.
+When performing !-notation on a \lstinline{Keyword} to produce a \lstinline{Value} inside a function whose return type is \lstinline{Domain}, the type class instance of \lstinline{Dsl[Keyword, Domain, Value]} is required. For example, adaptive version of LDKs in \cref{NonadaptiveYield,NonadaptiveAwait,Yield-StreamFuture,Await-StreamFuture} requires \lstinline{Dsl} instances implemented in \cref{Yield-generator-instance,Yield-async-generator-instance,Await-future-instance,Await-async-generator-instance}.
 
 \begin{lstlisting}[caption={The \lstinline{Dsl} type class instance of \lstinline{Yield} for creating generators},label={Yield-generator-instance}]
 implicit def yieldDsl[A, B >: A]: Dsl[Yield[A], Stream[B], Unit] =
@@ -451,11 +434,11 @@ implicit def streamAwaitDsl[A, B](implicit ec: ExecutionContext): Dsl[Await[A], 
   }
 \end{lstlisting}
 
-By introducing the type class \lstinline{Dsl}, the calls to \lstinline{Keyword} are ad-hoc polymorphic to the specific domain of the call site. As a result, keywords like \lstinline{Yield} and \lstinline{Await} are now adaptive like first-class keywords.
+By introducing the type class \lstinline{Dsl}, the calls to \lstinline{Keyword} are ad-hoc polymorphic to the specific domain of the call site. As a result, library-defined keywords like \lstinline{Yield} and \lstinline{Await} are now adaptive like first-class keywords.
 
 \section{Implementation}\label{Implementation}
 
-We implemented the LDK approach in the framework \textit{Dsl.scala}, which consists with the following parts:
+We implemented the LDK approach in the framework \textit{Dsl.scala}, which consists of the following parts:
 
 \begin{description}
   \item[The core library] contains the definition of the \lstinline{Dsl} type class and \lstinline{Keyword}, the common super type of LDKs. They are slightly different from the definition in \cref{Dsl,Keyword}:
@@ -464,8 +447,6 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
     \item \lstinline{Keyword} is a universal trait \footnote{https://docs.scala-lang.org/overviews/core/value-classes.html}, allowing its subtypes to be value classes, which involves lower memory overhead in most of LDK use cases.
   \end{itemize}
   \item[Compiler plug-ins] performs CPS-transformation as described in \cref{CPS transformation}. There are two compiler plug-ins in \textit{Dsl.scala}: \lstinline{ResetEverywhere} and \lstinline{BangNotation}. The \lstinline{ResetEverywhere} plug-in adds a hidden \lstinline{@reset} annotation to the block of every method in source code, and the \lstinline{BangNotation} plug-in perform CPS-transformation according to the \lstinline{unary_!} method (or any method annotated as \lstinline{@shift}) and \lstinline{@reset} annotation, which are equivalent to \lstinline{shift} and \lstinline{reset} control operators \cite{danvy1989functional}, respectively.
-  
-  % described by  and \cite{Danvy1990AbstractingC}.
 
   In addition to block expressions mentioned in \cref{cps-block}, all other first-class control flows in Scala  \footnote{Note that the \lstinline{for} expression is not converted as it is not a first-class control flow but a group of nested method calls.} are transformed to CPS form by the \lstinline{BangNotation} plug-in in the metacontinuation \cite{Danvy1990AbstractingC} approach.
 
@@ -491,7 +472,7 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
 
 \section{Use cases}
 
-We will present some use cases of name-based CPS transformation and LDK or  in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
+We will present some use cases of name-based CPS transformation and LDK in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
 
 \subsection{Resolve the \lstinline{printf} problem, trivially}\label{resolve-printf-problem}
 
@@ -538,7 +519,7 @@ def f3 = StringPlaceholder.cpsApply { tmp0 =>
 }
 \end{lstlisting}
 
-Our solution is conciser than the solution with Scala Continuations \cite{rompf2009implementing}, because:
+Our solution is more concise than the solution with Scala Continuations \cite{rompf2009implementing}, because:
 \begin{enumerate*}
   \item No explicit \lstinline{reset} is required, as \lstinline{reset} is automatically added by the \lstinline{ResetEverywhere} plug-in.
   \item No explicit \lstinline{@cps} type annotation is required, since the \lstinline{BangNotation} plug-in is name-based. The type of \lstinline{f1}, \lstinline{f2} and \lstinline{f3} can be inferred automatically, according to Scala's type inference algorithm for closures.
@@ -574,12 +555,12 @@ print(*generator_test(), sep='\n')
 
 Unlike generators introduced in \cref{Implementing LDKs as ordinary delimited continuations}, \lstinline{returnable_generator} has the additional ability of returning values, thus its return type becomes to \lstinline{Generator[str, None, int]}, where \lstinline{str} is the iterator element type and \lstinline{int} is the type to return \footnote{Note that the declared return type and the type to return are different in Python generators. In other words, the \lstinline{return} keyword in Python ``lifts'' the plain value to a \lstinline{Generator}.}.
 
-When porting \lstinline{return} and \lstinline{yield from} to Scala, the return type should indicate both the element type and the type to return, thus \lstinline{Stream} is not applicable for return type any more. We can instead use the return type \lstinline{Continuation[Stream[String], Int]}, as shown in \cref{returnableGenerator}. It accepts a callback function \lstinline{k}, which can handle the \lstinline{Int} value being returned and resume the rest program in \lstinline{generatorTest}.
+When porting \lstinline{return} and \lstinline{yield from} to Scala, the return type should indicate both the element type and the type to return, thus \lstinline{Stream} is not applicable for return type any more. We can instead use the return type \lstinline{Continuation[Stream[String], Int]}, as shown in \cref{returnableGenerator}. It accepts a callback function \lstinline{k}, which can handle the \lstinline{Int} value being returned and resume the rest program in \lstinline{generatorTest}. Note that the underscore character is a Scala parameter placeholder for the callback function of the created \lstinline{Continuation} closure.
 
 \begin{lstlisting}[caption={Returning an additional value in LDK-based generators},label={returnableGenerator}]
-def returnableGenerator(): Continuation[Stream[String], Int] = { k =>
+def returnableGenerator(): Continuation[Stream[String], Int] = _ {
   !Yield("inside returnableGenerator")
-  k(1)
+  1
 }
 
 def generatorTest(): Stream[String] = {
@@ -610,15 +591,6 @@ implicit def shiftDsl[Domain, Value] =
 \end{lstlisting}
 
 The \lstinline{Shift} LDK can be considered as a simple wrapper of \lstinline{Continuation} that forward \lstinline{cpsApply} calls to the underlying \lstinline{continuation}.
-
-Unlike Java or C++, a Scala code block can have its value $r$, which is the last statement in the block. A closure like $\{ k \Rightarrow p; k(r) \}$ can be rewritten as $\{ k \Rightarrow k \{ p; r \} \}$, and finally simplified as $\_ \{ p; r \}$ with the help of Scala's placeholder syntax. As a result, the \lstinline{returnableGenerator} function in \cref{returnableGenerator} can be simplified as \cref{returnableGenerator-underscore}.
-
-\begin{lstlisting}[caption={Returning an additional value in LDK-based generators, written in the underscore trick},label={returnableGenerator-underscore}]
-def returnableGenerator(): Continuation[Stream[String], Int] = _ {
-  !Yield("inside returnableGenerator")
-  1
-}
-\end{lstlisting}
 
 Semantically, the automatically performed \lstinline{reset} control operator is prevented by the prepending underscore character. We call this usage of the underscore character the ``underscore trick''.
 
@@ -720,7 +692,7 @@ def earlyGeneratorTest(): Stream[String] = {
 earlyGeneratorTest.foreach(println)
 \end{lstlisting}
 
-Since we don't manually creating the closure of the \lstinline{Continuation}, the return type of \lstinline{earlyGenerator} becomes \lstinline{Continuation[Stream[String], Int]}, which requires some \lstinline{Dsl} instances that we have not defined, which are listed below:
+Since we don't manually create the closure of the \lstinline{Continuation}, the return type of \lstinline{earlyGenerator} becomes \lstinline{Continuation[Stream[String], Int]}, which requires some \lstinline{Dsl} instances that we have not defined, which are listed below:
 
 \begin{enumerate}
   \item \lstinline{Dsl[Yield[String], Stream[String], Unit]} \\ (required by \lstinline{!Yield} in \lstinline{earlyGeneratorTest})
@@ -800,7 +772,7 @@ case class Get[S]() extends Keyword[Get[S], S]
 case class Put[S](value: S) extends Keyword[Put[S], Unit]
 \end{lstlisting}
 
-\cref{upperCasedLastCharacter} is an example of a unary function that accepts a string parameter and returns the upper-cased last character of the parameter. The initial value is read from \lstinline{Get} LDK, then it is changed to upper-case by \lstinline{Put} LDK. At last, another \lstinline{Get} LDK is performed to read the changed value, whose last character is then returned.
+\Cref{upperCasedLastCharacter} is an example of a unary function that accepts a string parameter and returns the upper-cased last character of the parameter. The initial value is read from \lstinline{Get} LDK, then it is changed to upper-case by \lstinline{Put} LDK. At last, another \lstinline{Get} LDK is performed to read the changed value, whose last character is then returned.
 
 \begin{lstlisting}[caption={Using \lstinline{Get} and \lstinline{Put} in a unary function},label={upperCasedLastCharacter}]
 def upperCasedLastCharacter: String => Char = {
@@ -1444,7 +1416,7 @@ Generators can be used for creating eDSLs in the following approach:
   \item The consumer side interprets these produced command objects to actually perform operations.
 \end{itemize}
 
-However, the type of the command object is a protocol between the consumer and the producer, and must be determined in advance. Therefore, the number of available commands in a generator is fixed. A generator DSL is not composable with other generator DSLs. In addition, generators are traditionally implemented as a first class feature by the compiler, thus they do not collaborate with other direct style notation unless changing the compiler.
+However, the type of the command object is a part of the protocol between the consumer and the producer, and must be determined in advance. Therefore, the number of available commands in a generator is fixed. A generator DSL is not composable with other generator DSLs. In addition, generators are traditionally implemented as a first class feature by the compiler, thus they do not collaborate with other direct style notation unless changing the compiler.
 
 In contrast, our LDK-based generators can be used along with other LDKs, including but not limited to \lstinline{Shift} (\cref{The underscore trick}), \lstinline{Return} (\cref{Dsl derivation}), \lstinline{Await} (\cref{Collaborative library-defined keywords}), \lstinline{Each} (\cref{Generator comprehensions}), without modifying the compiler.
 
