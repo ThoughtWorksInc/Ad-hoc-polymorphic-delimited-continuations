@@ -934,7 +934,7 @@ def parallelTask: Task[Seq[String]] = {
 val Seq(fileContent0, fileContent1) = parallelTask.blockingAwait
 assert(fileContent0.startsWith("HTTP/1.1 200 OK"))
 assert(fileContent1.startsWith("HTTP/1.1 200 OK"))
-% \end{lstlisting}
+\end{lstlisting}
 
 Since the execution of \lstinline{parallelTask} is forked, the two URLs will be downloaded in parallel. The results are then collected into a \lstinline{Task} of \lstinline{Seq} at the \lstinline{!Return} LDK.
 
@@ -1396,7 +1396,7 @@ Despite the trivial manual lift calls in \lstinline{for}-comprehension, the mona
 
 \section{Related works}
 
-Previous works related to \textit{Dsl.scala} can be divided into two categories:% \textit{direct style syntax} and \textit{generic protocol of control flow operators}.
+Previous works related to \textit{Dsl.scala} can be divided into two categories:
 
 \begin{description}
   \item[Generic protocols of control flow operators] are motivated by the goal similar to our \lstinline{Dsl} type class. Operators of specific purposes can be implemented in single protocol, therefore, users of those operators can use a common interface for different domains. Monads and CPS functions are notable examples of such protocols.
