@@ -1,3 +1,5 @@
+\maketitle
+
 \section{Introduction}\label{Introduction}
 
 Traditionally, the capacity of a general purpose language can be extended to a special domain by creating an embedded Domain-Specific Language (eDSL) \cite{fowler2010domain} . For example, Akka provides a DSL to create finite-state machines \cite{lightbend2017akka}, which consists of some domain-specific operators including \lstinline{when}, \lstinline{goto}, \lstinline{stay}, etc. Although those operators looks similar to native control flow, they are not embeddable in native \lstinline{if}, \lstinline{while} or \lstinline{try} blocks, because the DSL code is split into small closures, preventing ordinary control flow from crossing the boundary of those closures. Thus, this kind of DSLs reinvent incompatible control flow to the meta-languages. TensorFlow's control flow operations \cite{abadi2016tensorflow} and Caolan's async library \cite{caolan2017async} are other examples of reinventing control flow in eDSLs.
@@ -470,16 +472,18 @@ We implemented the LDK approach in the framework \textit{Dsl.scala}, which consi
   According to the result of the benchmarks shown in \cref{Benchmarks}, the computational performance of \lstinline{Task} in \textit{Dsl.scala} is comparable to state-of-the-art Scala asynchronous programming libraries when running in HotSpot Server VM, and it achieves significant higher performance than state-of-the-art libraries when running in GraalVM.
 \end{description}
 
-\section{Use cases}
+\section{Asynchronous programming}\label{Asynchronous programming}
 
-We will present some use cases of name-based CPS transformation and LDK in this section, to illustrate the simplicity of our approach, in comparison to previous solutions.
+With the help of \lstinline{Dsl} derivation, a complex DSL can be composed of simple features. In this section we will present a sophisticated implementation of asynchronous task, which is composed of three independent features:
+\begin{enumerate*}
+  \item asynchronous result handling
+  \item exception handling
+  \item stack safety
+\end{enumerate*}, as defined in \cref{Task}. A new infix type alias \lstinline{!!} is used instead of \lstinline{Continuation}, as a shorter notation for nested \lstinline{Continuation} types.
 
-\subsection{Asynchronous programming}\label{Asynchronous programming}
-
-With the help of \lstinline{Dsl} derivation, a complex DSL can be composed of simple features. For example, we provided a type alias \lstinline{Task} for asynchronous programming, as a higher performance replacement of \lstinline{scala.concurrent.Future}, as shown in \cref{Task}. A new infix type alias \lstinline{!!} is used instead of \lstinline{Continuation}, as a shorter notation for nested \lstinline{Continuation} types.
 \begin{lstlisting}[caption={The definition of asynchronous \lstinline{Task}},label={Task}]
 type !![Domain, Value] = Continuation[Domain, Value]
-type Task[A] = TailRec[Unit] !! Throwable] !! A
+type Task[A] = TailRec[Unit] !! Throwable !! A
 \end{lstlisting}
 
 \lstinline{Task} supports the features of tail call optimization and exception handling. Each feature corresponds to a part the type signature. \lstinline{scala.util.control.TailCalls.TailRec} is used for tail call optimization, and \lstinline{scala.Throwable} is used to represent the internal exceptional state.
@@ -488,7 +492,7 @@ We create some derived \lstinline{Dsl}s to handle exceptions, which support doma
 
 In \cref{An asynchronous HTTP client}, we will present how to create an asynchronous HTTP client from \lstinline{Task}; in \cref{Parallel execution}, we will introduce the usage of \lstinline{Task[Seq[A]]}, which collects the results of multiple tasks into a \lstinline{Seq}, either executed in parallel or sequentially.
 
-\subsubsection{An asynchronous HTTP client}\label{An asynchronous HTTP client}
+\subsection{An asynchronous HTTP client}\label{An asynchronous HTTP client}
 
 \Cref{httpClient} is an example of an HTTP client built from low-level Java NIO.2 asynchronous IO operations. Note that the ``underscore trick'' is used to allow \lstinline{Task} to be executed across functions.
 
@@ -541,7 +545,7 @@ val httpResponse = asynchronousHttpClient(new URL("http://example.com/")).blocki
 httpResponse should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
-\subsubsection{Parallel execution}\label{Parallel execution}
+\subsection{Parallel execution}\label{Parallel execution}
 
 Another useful LDK for asynchronous programming is \lstinline{Fork}, which duplicate the current control flow, and the child control flow are executed in parallel, similar to the POSIX \lstinline{fork} system call, as shown in \cref{usingHttpClientInParallel}.
 
@@ -563,7 +567,19 @@ assert(fileContent1.startsWith("HTTP/1.1 200 OK"))
 
 Since the execution of \lstinline{parallelTask} is forked, the two URLs will be downloaded in parallel. The results are then collected into a \lstinline{Task} of \lstinline{Seq} at the \lstinline{!Return} LDK.
 
-The \lstinline{Task} implemented in \textit{Dsl.scala} is light-weight and faster. See \cref{Benchmarks} for the performance benchmark between \lstinline{dsl.task.Task}, \lstinline{scala.concurrent.Future}, \lstinline{scalaz.concurrent.Task} and \lstinline{monix.eval.Task}.
+\subsection{Modularity and performance}
+
+Our approach achieved both better modularity and better performance than previous implementation.
+
+\subsubsection{Modularity}
+
+Most of previous asynchronous programing libraries, including Scala Future \cite{haller2012sip}, Monix \cite{nedelcu2017monix}, and Cats effects \cite{typelevel2017cats}, are built from a solid implementation, along with some callback scheduler for custom behaviors. In contrast, our approach separate atomic features into independent \lstinline{Dsl} type classes.
+
+Scalaz Concurrent \cite{kenji2017scalaz} or other monad transformer \cite{liang1995monad} based approach can separate asynchronous programing features into monad of asynchronous handling and monad transformer of exception handling. Even though, trampolines are not able to implemented as monad transformers, as a result, intrusive code for trampolines must be present in each monad instance and monad transformer instance, or the call stack may overflow. In contrast, our approach allows non-intrusive \lstinline{Dsl} derivation for \lstinline{TailRec[Unit]}, then the ability of stack safety will be added on previously stack unsafe \lstinline{Dsl}s.
+
+
+\subsubsection{Performance}
+According to our benchmarks in \cref{Benchmarks}, on HotSpot JVM, our \lstinline{Task} implementation is much faster than monad transformer based implementations, and has similar performance in comparison to solid implementations. On GraalVM, our \lstinline{Task} implementation is faster than all other implementations.
 
 \section{Related works}
 
@@ -635,7 +651,7 @@ Since a monad is specified to a certain monadic data type, the capacity of a mon
 
 In our LDK approach, we remove the limitation of monads by separating the concept of monadic value into two distinguishing concepts: domain and library-defined keyword (LDK). A domain is the return type of the enclosing function, and an LDK is an operation in the domain. Therefore, a collection can be created from other collections or generators with different LDKs as discussed in \cref{Heterogeneous comprehensions,Generator comprehensions}. 
 
-In addition, separating domains and LDKs can lead simpler implementation. Our \lstinline{Get} and \lstinline{Put} can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in \cref{Single mutable state}. Also, a typical implementation of \lstinline{Cont} monad \cite{dyvbig2007monadic}, as defined in \cref{return_k,>>=_k}, is more complicated, as it creates $\lambda\kappa.t_1\left(\lambda v.t_2 v\kappa\right)$ and $\lambda v.t_2 v\kappa$, two more additional closures, for each \lstinline{>>=} operator. In contrast, the \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no closure, as defined in \cref{shiftDsl}.
+In addition, separating domains and LDKs can lead simpler implementation. Our state LDKs can be used in the domain of ordinary unary functions, while the monadic data type for a state monad is more complicated, as discussed in \cref{Single mutable state}. Also, a typical implementation of \lstinline{Cont} monad \cite{dyvbig2007monadic}, as defined in \cref{return_k,>>=_k}, is more complicated, as it creates two more additional closures -- $\lambda\kappa.t_1\left(\lambda v.t_2 v\kappa\right)$ and $\lambda v.t_2 v\kappa$ -- for each \lstinline{>>=} operator. In contrast, our \lstinline{Shift} LDK for delimited continuation runs as a simple forwarder, which creates no closure, as defined in \cref{shiftDsl} of \cref{The underscore trick}.
 
 \begin{align}
 \label{return_k}
@@ -697,7 +713,7 @@ The effect handler approach is more efficient than monad transformer because \ls
 \begin{description}
   \item[Straightforwardness] determines whether an eDSL behaves in the native conventions of the hosting language. Effect handlers are not straightforward because \lstinline{Eff} is an additional intermediate script, which is unable to directly collaborate with the hosting language, instead, every eDSL written \lstinline{Eff} requires two steps of type classes, \lstinline{Monad} and \lstinline{Handler}, in order to produce data understandable by the hosting language, as shown in \cref{eff-architecture}. What is worse is, two \lstinline{Eff}s cannot invoke each other if they contain different effect stacks.
 
-  Our LDK approach is more straightforward, as only one type class \lstinline{Dsl} is used to interpret the eDSL, as shown in \cref{dsl-architecture}. Instead of producing indirect script \lstinline{Eff}s, LDKs directly produces the underlying data structures, which can be easily used in the hosting language. In addition, an eDSL block can be used in another eDSL block of a different domain as long as the underlying data types are compatible. For example, in LDK approach, the \lstinline{generatorTest} function in \cref{returnableGenerator} can internally call the \lstinline{returnableGenerator} function even when the two functions return values of different types.
+  Our LDK approach is more straightforward, as only one type class \lstinline{Dsl} is used to interpret the eDSL, as shown in \cref{dsl-architecture}. Instead of producing indirect script \lstinline{Eff}s, LDKs directly produces the underlying data structures, which can be easily used in the hosting language. In addition, an eDSL block can be used in another eDSL block of a different domain as long as the underlying data types are compatible. As shown in \cref{The underscore trick}, in LDK approach, the \lstinline{generatorTest} function in \cref{returnableGenerator} can internally call the \lstinline{returnableGenerator} function even when the two functions return values of different types.
 
   \item[Keyword-wise Extensibility] determines whether a new keyword or operator can be introduced into an eDSL without change the return domain type. Unfortunately, the effect handler approach is not extensible in keyword-wise because an \lstinline{Eff} consists of a stack of effects, and each effect is specially designed for only a fix number of supported operators. An \lstinline{Eff} is only extensible in the domain-wise by appending a new effect, which will change the type of \lstinline{Eff}. 
 
@@ -855,15 +871,3 @@ The capacity of LDKs is the superset of both monads and ordinary delimited conti
 \subsection{Future work}
 
 Two types of polymorphism are involved in this paper. We implemented a \lstinline{BangNotation} Scala compiler plug-in to perform name-based CPS-transformation, which support answer type modification, or \textbf{polymorphic delimited continuation}; we introduced \lstinline{Dsl} type class, which allows run an LDK as a CPS function adaptive to the answer type, or \textbf{ad-hoc polymorphic delimited continuation}. In the future, we will investigate how to represent a delimited continuation that is both polymorphic and ad-hoc polymorphic.
-
-\clearpage
-\appendix
-% \printglossary
-
-\begin{acks}
-
-We are very grateful to Marisa Kirisame for many helpful comments and discussions.
-
-\end{acks}
-
-\bibliography{bibliography}

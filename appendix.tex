@@ -1,6 +1,5 @@
-\section{Introduction}\label{Introduction}
-
-This supplementary material blah blah
+\appendix
+% \printglossary
 
 \section{Use cases}
 
@@ -833,17 +832,3 @@ This time, Cats Effects are not benchmarked due to lack of \lstinline{ListT} in 
 \end{table}
 
 Despite the trivial manual lift calls in \lstinline{for}-comprehension, the monad transformer approach causes terrible computational performance in comparison to manually called \lstinline{traverseM}. In contrast, the performance of \textit{Dsl.scala} even got improved when \lstinline{cellTask} is inlined into \lstinline{listTask}.
-
-
-\clearpage
-\appendix
-% \printglossary
-
-
-\begin{acks}
-
-We are very grateful to Marisa Kirisame for many helpful comments and discussions.
-
-\end{acks}
-
-\bibliography{bibliography}

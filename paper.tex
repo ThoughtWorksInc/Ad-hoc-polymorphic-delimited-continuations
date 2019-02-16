@@ -90,6 +90,8 @@
 % DOI
 % \acmDOI{0000001.0000001}
 
+% \includeonly{body}
+% \includeonly{appendix}
 
 % Document starts
 \begin{document}
@@ -197,9 +199,17 @@ The core concept in our framework is the type class \texttt{Dsl}, which can be c
 
 \keywords{type class, scala, delimited continuation, monad, haskell}
 
-\maketitle
+\include{body}
+\include{appendix}
 
-\input{body}
+\begin{acks}
+
+We are very grateful to Marisa Kirisame for many helpful comments and discussions.
+
+\end{acks}
+
+\bibliography{bibliography}
+
 
 
 \end{document}
