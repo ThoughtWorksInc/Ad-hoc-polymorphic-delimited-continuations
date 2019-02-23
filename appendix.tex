@@ -166,18 +166,7 @@ def formatter: Double => Int => Vector[Any] => String = {
 println(formatter(0.5)(42)(Vector.empty))
 \end{lstlisting}
 
-Since we had introduced \lstinline{Dsl} instance for \lstinline{Get} and \lstinline{Put} LDKs in unary functions, now we only need a derived \lstinline{Dsl} instance to port these LDKs in curried functions, as shown in \cref{derivedFunction1Dsl}.
-
-\begin{lstlisting}[caption={Derived \lstinline{Dsl} instance in a curried function},label={derivedFunction1Dsl}]
-implicit def derivedFunction1Dsl[Keyword, State, Domain, Value](
-  implicit restDsl: Dsl[Keyword, Domain, Value]
-): Dsl[Keyword, State => Domain, Value] =
-  new Dsl[Keyword, State => Domain, Value] {
-    def cpsApply(keyword: Keyword, handler: Value => State => Domain): State => Domain = { state: State =>
-      restDsl.cpsApply(keyword, handler(_)(state))
-    }
-  }
-\end{lstlisting}
+Since we had introduced \lstinline{Dsl} instance for \lstinline{Get} and \lstinline{Put} LDKs in unary functions, now we only need a derived \lstinline{Dsl} instance to port these LDKs in curried functions, which is defined in \cref{derivedFunction1Dsl}.
 
 By combining \lstinline{getDsl} and \lstinline{derivedFunction1Dsl} together, the Scala compiler automatically searches matched type in the curried function when resolving the implicit \lstinline{Dsl} instance for a \lstinline{Get} LDK. For example, \lstinline{!Get[Vector[Any]]()} reads the third parameter of the \lstinline{formatter}. It will be translated to \lstinline[mathescape=true]|Get[Vector[Any]]().cpsApply { _ => $\hdots$ }|, where the \lstinline{cpsApply} call requires an instance of type \lstinline{Dsl[Get[Vector[Any]], Double => Int => Vector[Any] => String, Vector[Any]]}, which will be resolved as \lstinline{derivedFunction1Dsl(derivedFunction1Dsl(getDsl))}. Similarly, the \lstinline{Dsl} instance for reading the first parameter and the second parameter can be resolved as \lstinline{getDsl} and \lstinline{derivedFunction1Dsl(getDsl)}, respectively.
 
