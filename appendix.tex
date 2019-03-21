@@ -240,10 +240,10 @@ We defined \lstinline{Connect}, \lstinline{Read} and \lstinline{Write} LDKs to r
 
 \lstinline[mathescape=true]{!readAll($\hdots$)} and \lstinline[mathescape=true]{!writeAll($\hdots$)} are equivalent to \lstinline[mathescape=true]{!Shift(readAll($\hdots$))} and \lstinline[mathescape=true]{!Shift(writeAll($\hdots$))}. The explicit \lstinline{Shift} calls are omitted because we provided an implicit conversion from any \lstinline{Continuation}s(including \lstinline{Task}s) to \lstinline{Shift} LDKs.
 
-We also provided a \lstinline{blockingAwait} method in an implicit class, to blocking await the result of the asynchronous task, therefore, \lstinline{asynchronousHttpClient} can be used synchronously, as shown in \cref{usingAsynchonousHttpClient}.
+We also provided a \lstinline{blockingAwait} method, to block the current thread until the result of the asynchronous task is ready, therefore, \lstinline{asynchronousHttpClient} can be used synchronously, as shown in \cref{usingAsynchonousHttpClient}.
 
 \begin{lstlisting}[caption={Using the example HTTP client},label={usingAsynchonousHttpClient}]
-val httpResponse = asynchronousHttpClient(new URL("http://example.com/")).blockingAwait
+val httpResponse = Task.blockingAwait(asynchronousHttpClient(new URL("http://example.com/")))
 httpResponse should startWith("HTTP/1.1 200 OK")
 \end{lstlisting}
 
@@ -262,7 +262,7 @@ def parallelTask: Task[Seq[String]] = {
   !Return(content)
 }
 
-val Seq(fileContent0, fileContent1) = parallelTask.blockingAwait
+val Seq(fileContent0, fileContent1) = Task.blockingAwait(parallelTask)
 assert(fileContent0.startsWith("HTTP/1.1 200 OK"))
 assert(fileContent1.startsWith("HTTP/1.1 200 OK"))
 \end{lstlisting}
