@@ -19,3 +19,5 @@
 *-dot2tex-fig*.dot
 *-dot2tex-fig*.tex
 *.xdv
+/.direnv/
+/.devenv/
